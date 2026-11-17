@@ -40,8 +40,6 @@ MONTHS_MS = [
     "Julai", "Ogos", "September", "Oktober", "November", "Disember",
 ]
 
-# Tarikh pendaftaran dibuka jika `reg_open_date` tiada dalam secrets.toml.
-# Index 0 = event pertama (sentiasa dibuka).
 FALLBACK_OPEN_DATES = {1: "2026-11-23", 2: "2026-11-26"}
 
 STATUS_BADGES = {
@@ -73,7 +71,6 @@ def build_events():
         if event_date and TODAY > event_date:
             status, note = "closed", "Pendaftaran telah ditutup"
         elif open_date and TODAY < open_date:
-            # Buang paparan tarikh buka untuk event selain event pertama (cth: Christmas & New Year)
             if idx == 0:
                 status, note = "soon", f"Pendaftaran dibuka: {format_date(open_date)}"
             else:
@@ -81,8 +78,6 @@ def build_events():
         else:
             status, note = "open", "Pendaftaran kini dibuka"
 
-        # Hanya event_1 (School Holiday) aktif buat masa ini.
-        # Untuk aktifkan event lain, letak `active = true` dalam secrets.toml.
         active = bool(data.get("active", key == "event_1"))
         if not active and status == "open":
             status, note = "soon", "Maklumat akan diumumkan"
@@ -103,7 +98,7 @@ events_list = build_events()
 
 
 # ==========================================
-# 3. ADVANCED STYLING (TERMASUK BACKGROUND CBSSH.PNG)
+# 3. ADVANCED STYLING & NAVIGATION BAR CSS
 # ==========================================
 
 st.markdown("""
@@ -117,36 +112,44 @@ p { font-size: 13px; color: #57534e; }
 div[data-testid="stVerticalBlock"] { gap: 0.55rem; }
 div[data-testid="stVerticalBlockBorderWrapper"] { border-radius: 12px; border-color: #E8DCC7; background-color: #FFFCF7; }
 
-.custom-event-card {
-    background-color: #FFFCF7;
-    border: 1.5px solid #E8DCC7;
-    border-radius: 14px;
-    padding: 1.5rem;
-    margin-bottom: 0.5rem;
-    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    box-shadow: 0 4px 6px -1px rgba(120, 53, 15, 0.05);
-}
-
-/* Latar belakang imej cbssh.png khusus untuk kad pertama (School Holiday) */
-.card-school-holiday {
-    background-image: linear-gradient(rgba(255, 252, 247, 0.92), rgba(255, 252, 247, 0.92)), url('app/static/cbssh.png');
-    background-size: cover;
-    background-position: center;
-    border: 1.5px solid #D97706;
-}
-
-.custom-event-card:hover {
-    transform: translateY(-4px);
-    border-color: #D97706;
-    box-shadow: 0 10px 18px -3px rgba(120, 53, 15, 0.12);
-}
 @media (max-width: 768px) { .block-container { padding-left: 0.8rem; padding-right: 0.8rem; } }
 </style>
 """, unsafe_allow_html=True)
 
 
 # ==========================================
-# 4. HERO
+# 4. TOP NAVIGATION BAR (MENU PANTAS)
+# ==========================================
+
+
+nav_col1, nav_col2, nav_col3 = st.columns(3)
+with nav_col1:
+    if st.button("Terma & Syarat", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('terma-syarat');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+with nav_col2:
+    if st.button("Daftar dan Semak Status", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('senarai-acara');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+with nav_col3:
+    if st.button("Cara Mendaftar", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('cara-mendaftar');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+
+# ==========================================
+# 5. HERO
 # ==========================================
 
 with st.container(border=True):
@@ -155,8 +158,9 @@ with st.container(border=True):
     st.write("**Slot adalah terhad.**")
     st.success("🎉 Pendaftaran PFM Mega Car Boot Sale X School Holiday kini dibuka !")
 
+
 # ==========================================
-# 5. COUNTDOWN ACARA SETERUSNYA
+# 6. COUNTDOWN ACARA SETERUSNYA
 # ==========================================
 
 st.divider()
@@ -180,11 +184,13 @@ elif events_list:
 else:
     st.info("Tiada acara dijumpai. Sila semak konfigurasi secrets.toml.")
 
+
 # ==========================================
-# 6. TERMA & SYARAT
+# 7. TERMA & SYARAT
 # ==========================================
 
 st.divider()
+st.markdown('<div id="terma-syarat"></div>', unsafe_allow_html=True)
 st.subheader("📌 Terma & Syarat", anchor=False)
 st.caption("Sila baca peraturan dan syarat kami sebelum membuat pendaftaran.")
 
@@ -204,8 +210,9 @@ with st.container(border=True):
     else:
         st.warning("⚠️ Fail rules.pdf tidak dijumpai dalam folder assets.")
 
+
 # ==========================================
-# 7. SENARAI ACARA (DISUSUN KE BAWAH DENGAN BACKGROUND IMAGE)
+# 8. SENARAI ACARA (DAFTAR DAN SEMAK STATUS)
 # ==========================================
 
 import base64
@@ -223,7 +230,8 @@ if img_path.exists():
     bg_image_base64 = get_base64_image(img_path)
 
 st.divider()
-st.subheader("🗓️ Senarai Acara", anchor=False)
+st.markdown('<div id="senarai-acara"></div>', unsafe_allow_html=True)
+st.subheader("🗓️ Senarai Acara (Daftar & Semak Status)", anchor=False)
 st.caption("Pilih acara untuk melihat maklumat lanjut, countdown dan semak status pendaftaran.")
 
 if events_list:
@@ -272,8 +280,9 @@ if events_list:
         
         st.write("")
 
+
 # ==========================================
-# 8. LOKASI
+# 9. LOKASI
 # ==========================================
 
 st.divider()
@@ -285,11 +294,13 @@ with st.container(border=True):
     components.iframe(MAP_EMBED_URL, height=300, scrolling=False)
     st.link_button("🗺️ Buka lokasi di Google Maps", MAP_URL, use_container_width=True)
 
+
 # ==========================================
-# 9. CARA PENDAFTARAN
+# 10. CARA PENDAFTARAN
 # ==========================================
 
 st.divider()
+st.markdown('<div id="cara-mendaftar"></div>', unsafe_allow_html=True)
 st.subheader("📝 Cara Pendaftaran", anchor=False)
 st.caption("Ikuti langkah berikut untuk menjadi vendor PFM.")
 
@@ -308,8 +319,9 @@ with st.container(border=True):
         st.markdown(f"**{number}. {title}**")
         st.caption(description)
 
+
 # ==========================================
-# 10. HUBUNGI ADMIN
+# 11. HUBUNGI ADMIN
 # ==========================================
 
 st.divider()
