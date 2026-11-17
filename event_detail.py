@@ -229,7 +229,6 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
         unsafe_allow_html=True,
     )
     
-    # Ringkasan kos compact dalam 1 baris/flex
     st.markdown(
         f"<div style='background:#fafaf9; border-radius:6px; padding:0.5rem 0.8rem; margin:0.3rem 0; font-size:0.82rem; color:#57534e; text-align:center;'>"
         f"📦 {vendor_type}: <b>{format_rm(cat_price)}</b> "
@@ -242,7 +241,6 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
     if admin_note:
         st.markdown(f"<div style='background:#eff6ff; border-left:3px solid #2563eb; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.82rem; color:#44403c; margin:0.3rem 0;'><b>Nota Admin:</b> {admin_note}</div>", unsafe_allow_html=True)
 
-    # Info Bank Compact 2 Kolum
     st.markdown("<div style='font-size:0.7rem; color:#78716c; font-weight:700; text-transform:uppercase; margin-top:0.4rem;'>🏦 Maklumat Bank</div>", unsafe_allow_html=True)
     bc1, bc2 = st.columns(2)
     with bc1:
@@ -250,6 +248,7 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
     with bc2:
         st.markdown("<div style='font-size:0.8rem; background:#eff6ff; border-radius:6px; padding:0.5rem;'>Akaun: <b>557054621057</b><br>Remark: <b>PFMCBS + 4 digit tel</b></div>", unsafe_allow_html=True)
 
+    st.markdown("<div style='font-size:0.78rem; color:#b45309; margin-top:0.3rem;'>⚠️ Sila upload bukti bayaran dalam format PDF sahaja.</div>", unsafe_allow_html=True)
     st.link_button("📤 Upload bukti pembayaran dan pemilihan slot", ev_data.get("payment_form_url", form_url), width="stretch", type="primary")
     if st.button("Tutup", width="stretch"): st.rerun()
 
@@ -362,7 +361,7 @@ with col_right:
 st.divider()
 
 # ==========================================
-# 6. SEMAK STATUS KELAYAKAN (COMPACT PAYMENT LAYOUT)
+# 6. SEMAK STATUS KELAYAKAN
 # ==========================================
 st.markdown('<div id="semak-status"></div>', unsafe_allow_html=True)
 st.markdown("<h3 style='font-size: 1.6rem;'>🔍 Semak Status Kelayakan</h3>", unsafe_allow_html=True)
@@ -459,42 +458,13 @@ if submitted and query:
                             admin_note=admin_note_for_popup,
                         )
 
-                    # Tampilan Utama Compact (Tanpa Scroll Panjang)
-                    if total_price > 0:
-                        breakdown = f"📦 {vendor_type}: {format_rm(cat_price)}"
-                        if deposit_amount > 0: breakdown += f" | 🔒 Deposit: {format_rm(deposit_amount)}"
-                        if addon_price > 0: breakdown += f" | ➕ Add On: {format_rm(addon_price)}"
-
-                        st.markdown(
-                            f"<div style='background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:0.6rem 0.9rem; margin:0.4rem 0;'>"
-                            f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
-                            f"<div><span style='font-size:0.7rem; color:#9a3412; font-weight:700; text-transform:uppercase;'>💰 Jumlah Perlu Dibayar</span><div style='font-size:1.5rem; font-weight:800; color:#7c2d12;'>{format_rm(total_price)}</div></div>"
-                            f"<div style='text-align:right; font-size:0.75rem; color:#9a3412;'>{breakdown}</div>"
-                            f"</div></div>",
-                            unsafe_allow_html=True,
-                        )
-
-                    # Info Bank 2 Kolum Padat
+                    # Skrin Utama: Ringkas dan elak pertindihan UI
                     with st.container(border=True):
-                        st.caption("💳 MAKLUMAT PEMBAYARAN (MAYBANK)")
-                        bc1, bc2 = st.columns(2)
-                        with bc1:
-                            st.markdown("👤 **Nama:** PRINTHERO MERCHANDISE SDN. BHD.")
-                            st.markdown("🔢 **No. Akaun:** `557054621057`")
-                        with bc2:
-                            st.markdown("📝 **Remark:** `PFMCBS` + 4 digit no. tel")
-                            st.caption("⚠️ Format bukti bayaran: PDF sahaja.")
+                        st.warning("💳 **Permohonan Anda Telah Diluluskan!** Sila semak pop-up di atas untuk maklumat pembayaran dan akaun bank.")
 
                     _render_notes(row, COL_REMARK)
                     if products_text:
                         render_products_box(products_text)
-
-                    st.link_button(
-                        "📤 Upload bukti pembayaran dan pemilihan slot",
-                        ev_data.get("payment_form_url", form_url),
-                        width="stretch",
-                        type="primary",
-                    )
 
                 else:
                     slot_items = []
