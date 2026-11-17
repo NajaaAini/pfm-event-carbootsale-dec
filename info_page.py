@@ -249,11 +249,11 @@ if events_list:
                 <div style="font-size: 11px; font-weight: 700; margin-bottom: 8px;">
                     { '🟢 Pendaftaran dibuka' if ev['status'] == 'open' else ('🟡 Akan datang' if ev['status'] == 'soon' else '⚪ Acara selesai') }
                 </div>
-                <div style="font-size: 24px; font-weight: 700; color: #292524; margin-bottom: 8px;">{ev['name']}</div>
-                <div style="font-size: 18px; color: #78716c; margin-bottom: 2px;">📅 Tarikh acara</div>
-                <div style="font-size: 18px; font-weight: 700; color: #292524; margin-bottom: 8px;">{ev['date_text']}</div>
-                <div style="font-size: 18px; color: #b45309; font-weight: 600; margin-bottom: 10px;">{ev['note']}</div>
-                <div style="font-size: 14px; color: #57534e; margin-bottom: 5px;">
+                <div style="font-size: 18px; font-weight: 700; color: #292524; margin-bottom: 8px;">{ev['name']}</div>
+                <div style="font-size: 14px; color: #78716c; margin-bottom: 2px;">📅 Tarikh acara</div>
+                <div style="font-size: 14px; font-weight: 700; color: #292524; margin-bottom: 8px;">{ev['date_text']}</div>
+                <div style="font-size: 14px; color: #b45309; font-weight: 600; margin-bottom: 10px;">{ev['note']}</div>
+                <div style="font-size: 12px; color: #57534e; margin-bottom: 5px;">
                     { 'Klik maklumat lanjut untuk pendaftaran dan semak kelayakan.' if ev['active'] else 'Maklumat pendaftaran akan diumumkan.' }
                 </div>
             </div>
