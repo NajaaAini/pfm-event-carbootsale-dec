@@ -367,7 +367,7 @@ st.divider()
 # ==========================================
 st.markdown('<div id="harga-sewa"></div>', unsafe_allow_html=True)
 st.markdown("<h3 style='font-size: 1.8rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
-st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak.")
+st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak. Harga kadar sewa tidak termasuk deposit.")
 
 pricing_rows = [
     {"Kategori Tapak": "Car Boot Sales", "Kadar Sewa": format_rm(ev_data.get("price_car_boot", 160)), "Deposit": format_rm(0)},
@@ -383,7 +383,7 @@ st.divider()
 # 8. LAYOUT TAPAK CAR BOOT SALE (DENGAN LAYOUT.PNG)
 # ==========================================
 st.markdown('<div id="layout-tapak"></div>', unsafe_allow_html=True)
-st.markdown("<h3 style='font-size: 1.8rem;'>🗺️ Layout & Zon Tapak Niaga</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='font-size: 1.8rem;'>🗺️ Layout Niaga</h3>", unsafe_allow_html=True)
 st.caption("Pelan susun atur ruang niaga dan tapak rasmi di perkarangan Penang Ferry Museum.")
 
 with st.container(border=True):
@@ -395,15 +395,15 @@ with st.container(border=True):
 
     st.markdown("""
     <div style="background-color: #FFFCF7; padding: 1rem; border-radius: 8px; border: 1px dashed #D97706; margin-top: 10px;">
-        <h4 style="color: #78350F; margin-top: 0;">📍 Panduan Zon Tapak PFM</h4>
+        <h4 style="color: #78350F; margin-top: 0;">📍 Layout PFM</h4>
         <p style="color: #57534e; font-size: 14px;">
             Zon tapak dibahagikan mengikut kategori kenderaan dan perniagaan bagi memastikan aliran trafik pengunjung lancar serta selesa:
         </p>
         <ul style="color: #57534e; font-size: 14px; line-height: 1.6;">
-            <li><b>Zon A (Car Boot Sales):</b> Bahagian utama berhampiran pintu masuk muzium (Khas untuk berniaga terus dari bonet kereta).</li>
-            <li><b>Zon B (F&B / Makanan & Minuman):</b> Ruang khusus yang mempunyai laluan pengudaraan luas dan kemudahan tapak memasak yang selamat.</li>
-            <li><b>Zon C (Food Truck):</b> Lot parkir berturap rata khas untuk trak makanan (*food truck*).</li>
-            <li><b>Zon D (Arts, Crafts & Retail):</b> Tapak khemah pameran produk kraftangan, pakaian, dan aksesori.</li>
+            <li><b>Lot A - Lot F (Car Boot Sales):</b> Bahagian utama berhampiran pintu masuk muzium (Khas untuk berniaga terus dari bonet kereta).</li>
+            <li><b>Zon H - Lot I (F&B / Makanan & Minuman):</b> Ruang khusus untuk vendor F&B.</li>
+            <li><b>Zon K (Food Truck):</b> Khas untuk trak makanan (food truck).</li>
+            <li><b>Zon J (Arts, Crafts & Retail):</b> Tapak khemah khas produk kraftangan, pakaian, dan aksesori.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
