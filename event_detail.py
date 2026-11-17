@@ -415,7 +415,7 @@ if submitted and query:
             # RENDER STATUSES
             if status == "Pending":
                 with st.container(border=True):
-                    st.warning("⏳ **Permohonan Sedang Disemak** (2-3 hari bekerja). Belum perlu bayar.")
+                    st.warning("⏳ **Permohonan Sedang Disemak** (2-3 hari bekerja).")
 
             elif status == "Rejected":
                 reject_reason = str(row.get("Notes", "") or "").strip()
