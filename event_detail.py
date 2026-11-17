@@ -32,7 +32,7 @@ if not ev_data.get("active", event_key == "event_1"):
     st.stop()
 
 event_name = ev_data.get("name", "Event PFM")
-event_date_str = ev_data.get("event_date", "2026-12-11")
+event_date_str = ev_data.get("event_date", "11 - 12 December 2026")
 event_time_str = ev_data.get("event_time", "4:00 PM – 12:00 AM")
 event_venue_str = ev_data.get("venue", "Perkarangan Penang Ferry Museum")
 form_url = ev_data.get("google_form_responses_url", "https://forms.gle/7eoMCUDyQYRfLA7e8")
@@ -272,24 +272,19 @@ def show_cancel_dialog(row, plate, cancel_reason):
 if st.button("⬅️ Kembali ke Menu Utama"):
     st.switch_page("info_page.py")
 
-st.markdown("""
-<div style="text-align: center; margin-bottom: 0.3rem; margin-top: 0.8rem;">
-    <span style="font-size: 11px; font-weight: 700; color: #78350F; letter-spacing: 0.5px;">📌 PINTASAN PANTAS (NAVIGATION)</span>
-</div>
-""", unsafe_allow_html=True)
 
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 with nav_col1:
-    if st.button("📝 Daftar Vendor", use_container_width=True):
+    if st.button("Pendaftaran Vendor", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('daftar-vendor'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col2:
-    if st.button("🔍 Semak Status", use_container_width=True):
+    if st.button("Semak Status", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('semak-status'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col3:
-    if st.button("💰 Harga & Sewa", use_container_width=True):
+    if st.button("Harga & Sewa", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('harga-sewa'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col4:
-    if st.button("🗺️ Layout Tapak", use_container_width=True):
+    if st.button("Layout Tapak", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('layout-tapak'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 
 st.divider()
@@ -356,7 +351,7 @@ with col_right:
     st.divider()
     st.markdown('<div id="daftar-vendor"></div>', unsafe_allow_html=True)
     st.markdown("<h3 style='font-size: 1.3rem; margin-top: 0px;'>📝 Pendaftaran Vendor</h3>", unsafe_allow_html=True)
-    st.link_button("🚀 Buka Borang Pendaftaran Vendor", form_url, type="primary", use_container_width=True)
+    st.link_button("Borang Pendaftaran Vendor", form_url, type="primary", use_container_width=True)
 
 st.divider()
 
@@ -542,10 +537,10 @@ with st.container(border=True):
     <div style="background-color: #FFFCF7; padding: 0.8rem; border-radius: 8px; border: 1px dashed #D97706; margin-top: 10px;">
         <h4 style="color: #78350F; margin-top: 0; font-size: 1rem;">📍 Panduan Zon Tapak PFM</h4>
         <ul style="color: #57534e; font-size: 0.85rem; line-height: 1.5; margin-bottom: 0;">
-            <li><b>Zon A (Car Boot Sales):</b> Khas untuk kenderaan peserta berniaga terus dari bonet.</li>
-            <li><b>Zon B (F&B):</b> Ruang pengudaraan luas dengan kemudahan memasak selamat.</li>
-            <li><b>Zon C (Food Truck):</b> Lot parkir berturap rata khas untuk trak makanan.</li>
-            <li><b>Zon D (Arts, Crafts & Retail):</b> Tapak khemah produk kraftangan & pakaian.</li>
+            <li><b>Zon A - F (Car Boot Sales):</b> Khas untuk kenderaan peserta berniaga terus dari bonet.</li>
+            <li><b>Zon H - I (F&B):</b> Ruang untuk vendor f&b.</li>
+            <li><b>Zon K (Food Truck):</b> Lot parkir khas untuk trak makanan.</li>
+            <li><b>Zon J (Arts, Crafts & Retail):</b> Tapak khemah produk kraftangan & pakaian.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
