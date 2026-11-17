@@ -248,7 +248,6 @@ def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addo
     with bc2:
         st.markdown("<div style='font-size:0.8rem; background:#eff6ff; border-radius:6px; padding:0.5rem;'>Akaun: <b>557054621057</b><br>Remark: <b>PFMCBS + 4 digit tel</b></div>", unsafe_allow_html=True)
 
-    st.markdown("<div style='font-size:0.78rem; color:#b45309; margin-top:0.3rem;'>⚠️ Sila upload bukti bayaran dalam format PDF sahaja.</div>", unsafe_allow_html=True)
     st.link_button("📤 Upload bukti pembayaran dan pemilihan slot", ev_data.get("payment_form_url", form_url), width="stretch", type="primary")
     if st.button("Tutup", width="stretch"): st.rerun()
 
