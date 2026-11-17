@@ -2,6 +2,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
+import re
 
 import pandas as pd
 import streamlit as st
@@ -43,7 +44,12 @@ TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
 COL_NAME = "Nama Perniagaan Syarikat"
 COL_PHONE = "Nombor Telefon/Phone Number"
 COL_TYPE = "Kategori Produk/Product Category"
+COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
+COL_ADDON = "ADD ON"
+COL_REMARK = "Remark"
+PROOF_COL = "Upload Bukti Bayaran dan Pemilihan Lot"
+
 VALID_STATUSES = ["Pending", "Approved", "Rejected", "Cancelled"]
 
 # ==========================================
@@ -93,116 +99,174 @@ def find_lot_column(df_):
 def normalize_plate(series):
     return series.astype(str).str.upper().str.replace(" ", "")
 
+def get_category_price(vendor_type):
+    try:
+        if vendor_type == "Car Boot Sales":
+            return float(ev_data.get("price_car_boot", 160))
+        elif vendor_type == "F&B":
+            return float(ev_data.get("price_fb", 400))
+        elif vendor_type == "Food Truck":
+            return float(ev_data.get("price_ft", 400))
+        else:
+            return float(ev_data.get("price_others", 200))
+    except Exception:
+        return 0.0
+
+def get_deposit(vendor_type):
+    try:
+        if vendor_type == "F&B":
+            return float(ev_data.get("deposit_fb", 100))
+        elif vendor_type == "Food Truck":
+            return float(ev_data.get("deposit_ft", 100))
+        elif vendor_type == "Arts/Crafts & Others":
+            return float(ev_data.get("deposit_others", 100))
+        return 0.0
+    except Exception:
+        return 0.0
+
+def get_addon_price(addon_str):
+    if addon_str is None or pd.isna(addon_str):
+        return 0.0
+    try:
+        matches = re.findall(r"RM\s*([0-9]+(?:\.[0-9]+)?)", str(addon_str))
+        return sum(float(m) for m in matches)
+    except Exception:
+        return 0.0
+
 @st.cache_data(ttl=60, show_spinner="Memuatkan data...")
 def load_vendors():
     conn = st.connection("gsheets", type=GSheetsConnection)
     try: return conn.read(worksheet="Vendors", ttl=60), None
     except Exception as e: return None, str(e)
 
-@st.cache_data(ttl=30, show_spinner=False)
-def check_payment_uploaded(plate):
+@st.cache_data(ttl=60, show_spinner=False)
+def load_payments():
     conn = st.connection("gsheets", type=GSheetsConnection)
+    try: return conn.read(worksheet="Payments", ttl=60), None
+    except Exception as e: return None, str(e)
+
+def get_vendor_payment_info(payments_df, plate_norm):
+    if payments_df is None or payments_df.empty:
+        return {}
+    if "Plate Number" not in payments_df.columns:
+        return {}
+    matched = payments_df[
+        payments_df["Plate Number"].astype(str).str.upper().str.replace(" ", "") == plate_norm
+    ]
+    if matched.empty:
+        return {}
     try:
-        payments_df = conn.read(worksheet="Payments", ttl=30)
-        if payments_df is not None and not payments_df.empty:
-            return normalize_plate(payments_df["Plate Number"]).str.contains(plate).any()
-    except Exception: pass
-    return False
+        matched = matched.sort_values("Timestamp", ascending=False)
+    except Exception:
+        pass
+    latest = matched.iloc[0]
+    def _clean(v):
+        s = str(v or "").strip()
+        if s.lower() in ("nan", "none", "nat", "null"):
+            return ""
+        return s
+    return {
+        "proof_url": _clean(latest.get(PROOF_COL, "")),
+        "timestamp": _clean(latest.get("Timestamp", "")),
+        "parking_lot": _clean(latest.get("Pilih parking lot", "")),
+        "fnb_lot": _clean(latest.get("Pilih F&B Lot", "")),
+        "ft_lot": _clean(latest.get("Pilih Food Truck Lot", "") or latest.get("Pilih F&B Lot", "")),
+        "arts_lot": _clean(latest.get("Pilih Arts/Crafts & Others Lot", "") or latest.get("Pilih Arts & Crafts / Toys Lot", "")),
+    }
 
-def save_vendor_edit(conn, df, plate, new_phone, new_products):
-    mask = normalize_plate(df[COL_PLATE]) == plate
-    df.loc[mask, COL_PHONE] = new_phone
-    p_col = find_products_column(df)
-    if p_col: df.loc[mask, p_col] = new_products
-    conn.update(worksheet="Vendors", data=df)
-    st.cache_data.clear()
+def render_products_box(products_text):
+    st.markdown(
+        "<div style='background:#faf5ec; border-left:4px solid #78350f; "
+        "border-radius:8px; padding:0.6rem 0.9rem; margin:0.4rem 0;'>"
+        "<div style='font-size:0.7rem; color:#78350f; letter-spacing:0.04em; "
+        "font-weight:700; text-transform:uppercase; margin-bottom:0.25rem;'>"
+        "🛍️ Senarai Produk Anda</div>"
+        f"<div style='font-size:0.82rem; color:#44403c; white-space:pre-wrap; "
+        f"line-height:1.4;'>{products_text}</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
 # ==========================================
-# 3. DIALOG STATUS
+# 3. POPUPS (DIALOGS) - COMPACT
 # ==========================================
-@st.dialog("Tiada Rekod Dijumpai", width="large")
-def show_not_found_dialog(query):
-    st.error(f"❌ Tiada permohonan dijumpai untuk No. Plate: `{query}`")
-    st.info("Sila pastikan No. Plate anda betul, atau daftar sekarang jika belum mendaftar.")
-    st.link_button("📝 Daftar Sekarang", form_url, type="primary", use_container_width=True)
-    if st.button("Tutup", use_container_width=True): st.rerun()
+@st.dialog("🎉 Tahniah!", width="large")
+def show_success_dialog(row, plate, status, paid, slot_items):
+    st.markdown(
+        "<div style='text-align:center; padding:0.2rem 0 0.5rem 0;'>"
+        "<div style='font-size:2.2rem; line-height:1;'>🎉</div>"
+        "<div style='font-size:1.2rem; font-weight:700; color:#14532d; margin-top:0.3rem;'>Pendaftaran Berjaya Disahkan!</div>"
+        "</div>",
+        unsafe_allow_html=True,
+    )
+    cat_str = f" · {row[COL_CAT]}" if pd.notna(row.get(COL_CAT)) and str(row.get(COL_CAT)).strip() else ""
+    st.markdown(
+        f"<div style='background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:0.6rem 0.8rem; margin:0.3rem 0;'>"
+        f"<div style='font-size:0.95rem; font-weight:700; color:#14532d;'>🚗 {plate} — {row[COL_NAME]}</div>"
+        f"<div style='font-size:0.8rem; color:#166534;'>{row[COL_TYPE]}{cat_str}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    if slot_items:
+        cols = st.columns(2)
+        for i, (label, val) in enumerate(slot_items):
+            with cols[i % 2]:
+                st.markdown(
+                    f"<div style='background:#f7f3ee; border-radius:6px; padding:0.4rem 0.6rem; margin-bottom:0.3rem; font-size:0.82rem;'><b>{label}:</b> {val}</div>",
+                    unsafe_allow_html=True,
+                )
+    st.info("📌 **Jangan lupa join WhatsApp Group Vendor** untuk info terkini.")
+    st.link_button("💬 Join WhatsApp Group Vendor", whatsapp_group, width="stretch", type="primary")
+    if st.button("Tutup", width="stretch"): st.rerun()
 
-@st.dialog("Status Permohonan", width="large")
-def show_status_dialog(row, plate_norm, status, paid, products_text, lot_info):
-    st.markdown(f"### 🚗 {row[COL_PLATE]} — {row[COL_NAME]}")
-    st.caption(f"Kategori: {row[COL_TYPE]}")
+@st.dialog("💳 Maklumat Pembayaran", width="large")
+def show_payment_dialog(row, plate, vendor_type, cat_price, deposit_amount, addon_price, total_price, admin_note=""):
+    st.markdown(
+        f"<div style='text-align:center; padding:0.2rem 0 0.4rem 0;'>"
+        f"<div style='font-size:0.7rem; color:#9a3412; font-weight:700; text-transform:uppercase;'>💰 Jumlah Perlu Dibayar</div>"
+        f"<div style='font-size:1.8rem; font-weight:800; color:#7c2d12; line-height:1.1;'>{format_rm(total_price)}</div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+    
+    # Ringkasan kos compact dalam 1 baris/flex
+    st.markdown(
+        f"<div style='background:#fafaf9; border-radius:6px; padding:0.5rem 0.8rem; margin:0.3rem 0; font-size:0.82rem; color:#57534e; text-align:center;'>"
+        f"📦 {vendor_type}: <b>{format_rm(cat_price)}</b> "
+        f"{f'| 🔒 Deposit: <b>{format_rm(deposit_amount)}</b>' if deposit_amount > 0 else ''} "
+        f"{f'| ➕ Add On: <b>{format_rm(addon_price)}</b>' if addon_price > 0 else ''}"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
-    if status == "Pending":
-        st.warning("⏳ Permohonan Sedang Disemak (2-3 hari bekerja). Belum perlu bayar.")
-    elif status == "Rejected":
-        st.error(f"❌ Permohonan Tidak Berjaya: {clean_text_field(row.get('Notes', ''))}")
-    elif status == "Cancelled":
-        st.error(f"🚫 Slot Dibatalkan: {clean_text_field(row.get('Notes', ''))}")
-    elif status == "Approved":
-        if paid:
-            st.success("✅ Permohonan Disahkan & Bayaran Diterima.")
-            
-            # Papar Lot Pilihan jika ada
-            if lot_info:
-                st.info(f"📍 **Lot / Ruang Niaga Anda:** {lot_info}")
+    if admin_note:
+        st.markdown(f"<div style='background:#eff6ff; border-left:3px solid #2563eb; border-radius:6px; padding:0.5rem 0.8rem; font-size:0.82rem; color:#44403c; margin:0.3rem 0;'><b>Nota Admin:</b> {admin_note}</div>", unsafe_allow_html=True)
 
-            if products_text:
-                with st.container(border=True):
-                    st.caption("🛍️ Senarai Produk Anda")
-                    st.text(products_text)
-            st.link_button("💬 Join WhatsApp Group Vendor", whatsapp_group, type="primary", use_container_width=True)
-            st.balloons()
-        else:
-            if check_payment_uploaded(plate_norm):
-                st.info("⏳ Bayaran Sedang Disemak (1-2 hari bekerja).")
-                if lot_info:
-                    st.info(f"📍 **Lot Pilihan:** {lot_info}")
-            else:
-                st.info("📤 Sila buat pembayaran & muat naik bukti bayaran.")
-                
-                # Kira anggaran harga berdasarkan kategori produk
-                v_type = str(row[COL_TYPE]).lower()
-                if "f&b" in v_type or "makanan" in v_type:
-                    rent = float(ev_data.get("price_fb", 400))
-                    dep = float(ev_data.get("deposit_fb", 100))
-                elif "truck" in v_type:
-                    rent = float(ev_data.get("price_ft", 400))
-                    dep = float(ev_data.get("deposit_ft", 100))
-                elif "art" in v_type or "craft" in v_type or "lain" in v_type:
-                    rent = float(ev_data.get("price_others", 200))
-                    dep = float(ev_data.get("deposit_others", 100))
-                else:
-                    rent = float(ev_data.get("price_car_boot", 160))
-                    dep = float(ev_data.get("deposit_car_boot", 0))
-                
-                total_amt = rent + dep
-                
-                with st.container(border=True):
-                    st.markdown(f"**💰 Ringkasan Bayaran Perlu Dibuat:**")
-                    st.write(f"- Kadar Sewa Tapak: {format_rm(rent)}")
-                    st.write(f"- Deposit Keselamatan: {format_rm(dep)}")
-                    st.markdown(f"### **Jumlah Keseluruhan: {format_rm(total_amt)}**")
+    # Info Bank Compact 2 Kolum
+    st.markdown("<div style='font-size:0.7rem; color:#78716c; font-weight:700; text-transform:uppercase; margin-top:0.4rem;'>🏦 Maklumat Bank</div>", unsafe_allow_html=True)
+    bc1, bc2 = st.columns(2)
+    with bc1:
+        st.markdown("<div style='font-size:0.8rem; background:#eff6ff; border-radius:6px; padding:0.5rem;'><b>MAYBANK</b><br>PRINTHERO MERCHANDISE</div>", unsafe_allow_html=True)
+    with bc2:
+        st.markdown("<div style='font-size:0.8rem; background:#eff6ff; border-radius:6px; padding:0.5rem;'>Akaun: <b>557054621057</b><br>Remark: <b>PFMCBS + 4 digit tel</b></div>", unsafe_allow_html=True)
 
-                if lot_info:
-                    st.info(f"📍 **Lot Tapaga Anda:** {lot_info}")
+    st.markdown("<div style='font-size:0.78rem; color:#b45309; margin-top:0.3rem;'>⚠️ Sila upload bukti bayaran dalam format PDF sahaja.</div>", unsafe_allow_html=True)
+    st.link_button("📤 Upload bukti pembayaran dan pemilihan slot", ev_data.get("payment_form_url", form_url), width="stretch", type="primary")
+    if st.button("Tutup", width="stretch"): st.rerun()
 
-                new_phone = st.text_input("No. Telefon", value=format_phone_display(str(row.get(COL_PHONE, ""))))
-                new_products = st.text_area("Senarai Produk", value=products_text, height=68)
-                cs1, cs2 = st.columns(2)
-                with cs1:
-                    if st.button("💾 Simpan", type="primary", use_container_width=True):
-                        conn = st.connection("gsheets", type=GSheetsConnection)
-                        df, _ = load_vendors()
-                        if df is not None:
-                            save_vendor_edit(conn, df, plate_norm, new_phone, new_products)
-                            st.success("✅ Berjaya dikemaskini.")
-                            time.sleep(1)
-                            st.rerun()
-                with cs2:
-                    p_url = ev_data.get("payment_form_url", "")
-                    if p_url: 
-                        st.link_button("📤 Upload bukti pembayaran dan pemilihan slot", p_url, use_container_width=True)
-    if st.button("Tutup", use_container_width=True): st.rerun()
+@st.dialog("✕ Permohonan Tidak Berjaya", width="large")
+def show_reject_dialog(row, plate, reject_reason):
+    st.markdown("<div style='text-align:center; font-weight:700; color:#991b1b; font-size:1.1rem;'>Permohonan Tidak Berjaya</div>", unsafe_allow_html=True)
+    if reject_reason:
+        st.markdown(f"<div style='background:#fff7ed; border-left:3px solid #dc2626; border-radius:6px; padding:0.5rem; font-size:0.82rem;'><b>Mesej Admin:</b> {reject_reason}</div>", unsafe_allow_html=True)
+    if st.button("Tutup", width="stretch"): st.rerun()
+
+@st.dialog("Slot Dibatalkan", width="large")
+def show_cancel_dialog(row, plate, cancel_reason):
+    st.markdown("<div style='text-align:center; font-weight:700; color:#991b1b; font-size:1.1rem;'>Slot Dibatalkan</div>", unsafe_allow_html=True)
+    if cancel_reason:
+        st.markdown(f"<div style='background:#fef2f2; border-left:3px solid #dc2626; border-radius:6px; padding:0.5rem; font-size:0.82rem;'><b>Mesej Admin:</b> {cancel_reason}</div>", unsafe_allow_html=True)
+    if st.button("Tutup", width="stretch"): st.rerun()
 
 # ==========================================
 # 4. TOP NAVIGATION BAR (MENU PANTAS)
@@ -210,46 +274,32 @@ def show_status_dialog(row, plate_norm, status, paid, products_text, lot_info):
 if st.button("⬅️ Kembali ke Menu Utama"):
     st.switch_page("info_page.py")
 
+st.markdown("""
+<div style="text-align: center; margin-bottom: 0.3rem; margin-top: 0.8rem;">
+    <span style="font-size: 11px; font-weight: 700; color: #78350F; letter-spacing: 0.5px;">📌 PINTASAN PANTAS (NAVIGATION)</span>
+</div>
+""", unsafe_allow_html=True)
+
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 with nav_col1:
-    if st.button("Pendaftaran Vendor", use_container_width=True):
-        components.html("""
-            <script>
-                const el = window.parent.document.getElementById('daftar-vendor');
-                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
-            </script>
-        """, height=0)
+    if st.button("📝 Daftar Vendor", use_container_width=True):
+        components.html("""<script>const el = window.parent.document.getElementById('daftar-vendor'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col2:
-    if st.button("Semak Status", use_container_width=True):
-        components.html("""
-            <script>
-                const el = window.parent.document.getElementById('semak-status');
-                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
-            </script>
-        """, height=0)
+    if st.button("🔍 Semak Status", use_container_width=True):
+        components.html("""<script>const el = window.parent.document.getElementById('semak-status'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col3:
-    if st.button("Harga & Sewa", use_container_width=True):
-        components.html("""
-            <script>
-                const el = window.parent.document.getElementById('harga-sewa');
-                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
-            </script>
-        """, height=0)
+    if st.button("💰 Harga & Sewa", use_container_width=True):
+        components.html("""<script>const el = window.parent.document.getElementById('harga-sewa'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col4:
-    if st.button("Layout Tapak", use_container_width=True):
-        components.html("""
-            <script>
-                const el = window.parent.document.getElementById('layout-tapak');
-                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
-            </script>
-        """, height=0)
+    if st.button("🗺️ Layout Tapak", use_container_width=True):
+        components.html("""<script>const el = window.parent.document.getElementById('layout-tapak'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 
 st.divider()
 
 # ==========================================
 # 5. PAPARAN UTAMA & HERO
 # ==========================================
-st.markdown(f"<h1 style='text-align: center; font-size: 2.8rem;'>{event_name}</h1>", unsafe_allow_html=True)
+st.markdown(f"<h1 style='text-align: center; font-size: 2.5rem;'>{event_name}</h1>", unsafe_allow_html=True)
 st.write("") 
 
 col_left, col_right = st.columns([1, 2])
@@ -263,20 +313,20 @@ with col_left:
 
 with col_right:
     with st.container(border=True):
-        st.markdown("<h4 style='font-size: 1.5rem; margin-bottom: 0px;'>📌 Maklumat Rasmi Acara</h4>", unsafe_allow_html=True)
+        st.markdown("<h4 style='font-size: 1.3rem; margin-bottom: 0px;'>📌 Maklumat Rasmi Acara</h4>", unsafe_allow_html=True)
         st.markdown("---")
         
         d_col1, d_col2 = st.columns([1, 2])
-        with d_col1: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Tarikh Acara:</p>", unsafe_allow_html=True)
-        with d_col2: st.markdown(f"<p style='font-size: 1.1rem;'>{event_date_str}</p>", unsafe_allow_html=True)
+        with d_col1: st.markdown("<p style='font-size: 1rem; font-weight: bold;'>Tarikh Acara:</p>", unsafe_allow_html=True)
+        with d_col2: st.markdown(f"<p style='font-size: 1rem;'>{event_date_str}</p>", unsafe_allow_html=True)
             
         d_col3, d_col4 = st.columns([1, 2])
-        with d_col3: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Masa Operasi:</p>", unsafe_allow_html=True)
-        with d_col4: st.markdown(f"<p style='font-size: 1.1rem;'>{event_time_str}</p>", unsafe_allow_html=True)
+        with d_col3: st.markdown("<p style='font-size: 1rem; font-weight: bold;'>Masa Operasi:</p>", unsafe_allow_html=True)
+        with d_col4: st.markdown(f"<p style='font-size: 1rem;'>{event_time_str}</p>", unsafe_allow_html=True)
             
         d_col5, d_col6 = st.columns([1, 2])
-        with d_col5: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Lokasi Tapak:</p>", unsafe_allow_html=True)
-        with d_col6: st.markdown(f"<p style='font-size: 1.1rem;'>{event_venue_str}</p>", unsafe_allow_html=True)
+        with d_col5: st.markdown("<p style='font-size: 1rem; font-weight: bold;'>Lokasi Tapak:</p>", unsafe_allow_html=True)
+        with d_col6: st.markdown(f"<p style='font-size: 1rem;'>{event_venue_str}</p>", unsafe_allow_html=True)
 
     sub_col1, sub_col2 = st.columns(2)
     with sub_col1:
@@ -287,11 +337,11 @@ with col_right:
                 if rem > 0:
                     d, h = rem // 86400, (rem % 86400) // 3600
                     m, s = (rem % 3600) // 60, rem % 60
-                    st.metric("⏳ Countdown Menuju Hari Acara", f"{d} Hari {h} Jam {m} Minit {s} Saat")
+                    st.metric("⏳ Countdown Acara", f"{d} Hari {h} Jam {m} Minit")
                 else:
-                    st.info("🎉 Acara sedang berlangsung / telah bermula!")
+                    st.info("🎉 Acara sedang berlangsung!")
             except Exception:
-                st.caption("Tarikh acara tidak sah.")
+                pass
 
     total_vendor = "Tidak Diketahui"
     try:
@@ -305,20 +355,18 @@ with col_right:
             val_text = f"{total_vendor} / {max_s} Slot" if max_s else str(total_vendor)
             st.metric("Vendor Berdaftar", val_text)
 
-    # BORANG PENDAFTARAN VENDOR
     st.divider()
     st.markdown('<div id="daftar-vendor"></div>', unsafe_allow_html=True)
-    st.markdown("<h3 style='font-size: 1.5rem; margin-top: 5px;'>📝 Pendaftaran Vendor</h3>", unsafe_allow_html=True)
-    st.caption("Sila klik butang di bawah untuk mendaftar slot perniagaan anda melalui Google Form.")
-    st.link_button("Buka Borang Pendaftaran Vendor", form_url, type="primary", use_container_width=True)
+    st.markdown("<h3 style='font-size: 1.3rem; margin-top: 0px;'>📝 Pendaftaran Vendor</h3>", unsafe_allow_html=True)
+    st.link_button("🚀 Buka Borang Pendaftaran Vendor", form_url, type="primary", use_container_width=True)
 
 st.divider()
 
 # ==========================================
-# 6. SEMAK STATUS KELAYAKAN
+# 6. SEMAK STATUS KELAYAKAN (COMPACT PAYMENT LAYOUT)
 # ==========================================
 st.markdown('<div id="semak-status"></div>', unsafe_allow_html=True)
-st.markdown("<h3 style='font-size: 1.8rem;'>🔍 Semak Status Kelayakan</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='font-size: 1.6rem;'>🔍 Semak Status Kelayakan</h3>", unsafe_allow_html=True)
 st.caption("Masukkan No. Plate kenderaan anda untuk menyemak status permohonan.")
 
 with st.container(border=True):
@@ -327,7 +375,7 @@ with st.container(border=True):
         submitted = st.form_submit_button("Semak Status Kelayakan", type="primary", use_container_width=True)
 
         st.markdown(f"""
-        <div style='text-align: center; font-size: 0.9rem; margin-top: 0.5rem;'>
+        <div style='text-align: center; font-size: 0.85rem; margin-top: 0.3rem;'>
             Belum mendaftar? <a href='{form_url}' target='_blank' style='color: #78350f; font-weight: 600; text-decoration: underline;'>Daftar Sekarang</a>
         </div>
         """, unsafe_allow_html=True)
@@ -342,23 +390,151 @@ if submitted and query:
 
         result = df[normalize_plate(df[COL_PLATE]) == query.replace(" ", "")]
         if result.empty:
-            show_not_found_dialog(query)
+            st.error(f"❌ Tiada permohonan dijumpai untuk No. Plate: `{query}`")
+            st.info("Sila pastikan No. Plate anda betul, atau daftar sekarang jika belum mendaftar.")
+            st.link_button("📝 Daftar Sekarang", form_url, type="primary", use_container_width=True)
         else:
             row = result.iloc[0]
-            p_col = find_products_column(df)
-            l_col = find_lot_column(df)
+            status = str(row["Status"]).strip()
+            paid = bool(row["Paid"]) if "Paid" in row and pd.notna(row["Paid"]) else False
+            plate_norm = str(row[COL_PLATE]).upper().replace(" ", "")
+
+            payments_df, _ = load_payments()
+            payment_info = get_vendor_payment_info(payments_df if payments_df is not None else pd.DataFrame(), plate_norm)
+            has_uploaded_proof = bool(payment_info.get("proof_url"))
+            proof_upload_time = payment_info.get("timestamp", "")
             
-            p_text = clean_text_field(row.get(p_col, "")) if p_col else ""
-            l_text = clean_text_field(row.get(l_col, "")) if l_col else ""
-            
-            show_status_dialog(
-                row, 
-                query.replace(" ", ""), 
-                str(row["Status"]).strip(), 
-                bool(row.get("Paid", False)), 
-                p_text, 
-                l_text
-            )
+            parking_lot = payment_info.get("parking_lot", "")
+            fnb_lot = payment_info.get("fnb_lot", "")
+            ft_lot = payment_info.get("ft_lot", "")
+            arts_lot = payment_info.get("arts_lot", "")
+
+            products_col_name = find_products_column(df)
+            products_text = clean_text_field(row.get(products_col_name, "")) if products_col_name else ""
+
+            def _render_notes(r, COL_REMARK):
+                admin_note = str(r.get("Notes", "")).strip() if pd.notna(r.get("Notes")) else ""
+                vendor_remark = str(r.get(COL_REMARK, "")).strip() if pd.notna(r.get(COL_REMARK)) else ""
+                if admin_note and admin_note.lower() not in ("nan", "none", "null"):
+                    st.info(f"📝 **Nota Admin:** {admin_note}")
+                if vendor_remark and vendor_remark.lower() not in ("nan", "none", "null"):
+                    st.caption(f"📋 **Remark anda:** {vendor_remark}")
+
+            # RENDER STATUSES
+            if status == "Pending":
+                with st.container(border=True):
+                    st.warning("⏳ **Permohonan Sedang Disemak** (2-3 hari bekerja). Belum perlu bayar.")
+
+            elif status == "Rejected":
+                reject_reason = str(row.get("Notes", "") or "").strip()
+                show_reject_dialog(row, plate_norm, reject_reason)
+                st.error("✕ Permohonan Tidak Berjaya")
+
+            elif status == "Cancelled":
+                cancel_reason = str(row.get("Notes", "") or "").strip()
+                show_cancel_dialog(row, plate_norm, cancel_reason)
+                st.error("🚫 Slot Dibatalkan")
+
+            elif status == "Approved":
+                if not paid and has_uploaded_proof:
+                    with st.container(border=True):
+                        st.info(f"📤 **Bukti Bayaran Telah Dihantar** (Diterima: {proof_upload_time}). Admin sedang menyemak.")
+                    _render_notes(row, COL_REMARK)
+                    if products_text:
+                        render_products_box(products_text)
+
+                elif not paid and not has_uploaded_proof:
+                    vendor_type = str(row.get(COL_TYPE, "")).strip()
+                    cat_price = get_category_price(vendor_type)
+                    deposit_amount = get_deposit(vendor_type)
+                    addon_str_raw = str(row.get(COL_ADDON, "") or "")
+                    addon_price = get_addon_price(addon_str_raw)
+                    total_price = cat_price + deposit_amount + addon_price
+
+                    admin_note_for_popup = str(row.get("Notes", "")).strip() if pd.notna(row.get("Notes")) else ""
+
+                    if total_price > 0:
+                        show_payment_dialog(
+                            row, plate_norm, vendor_type,
+                            cat_price, deposit_amount, addon_price, total_price,
+                            admin_note=admin_note_for_popup,
+                        )
+
+                    # Tampilan Utama Compact (Tanpa Scroll Panjang)
+                    if total_price > 0:
+                        breakdown = f"📦 {vendor_type}: {format_rm(cat_price)}"
+                        if deposit_amount > 0: breakdown += f" | 🔒 Deposit: {format_rm(deposit_amount)}"
+                        if addon_price > 0: breakdown += f" | ➕ Add On: {format_rm(addon_price)}"
+
+                        st.markdown(
+                            f"<div style='background:#fff7ed; border:1px solid #fed7aa; border-radius:8px; padding:0.6rem 0.9rem; margin:0.4rem 0;'>"
+                            f"<div style='display:flex; justify-content:space-between; align-items:center;'>"
+                            f"<div><span style='font-size:0.7rem; color:#9a3412; font-weight:700; text-transform:uppercase;'>💰 Jumlah Perlu Dibayar</span><div style='font-size:1.5rem; font-weight:800; color:#7c2d12;'>{format_rm(total_price)}</div></div>"
+                            f"<div style='text-align:right; font-size:0.75rem; color:#9a3412;'>{breakdown}</div>"
+                            f"</div></div>",
+                            unsafe_allow_html=True,
+                        )
+
+                    # Info Bank 2 Kolum Padat
+                    with st.container(border=True):
+                        st.caption("💳 MAKLUMAT PEMBAYARAN (MAYBANK)")
+                        bc1, bc2 = st.columns(2)
+                        with bc1:
+                            st.markdown("👤 **Nama:** PRINTHERO MERCHANDISE SDN. BHD.")
+                            st.markdown("🔢 **No. Akaun:** `557054621057`")
+                        with bc2:
+                            st.markdown("📝 **Remark:** `PFMCBS` + 4 digit no. tel")
+                            st.caption("⚠️ Format bukti bayaran: PDF sahaja.")
+
+                    _render_notes(row, COL_REMARK)
+                    if products_text:
+                        render_products_box(products_text)
+
+                    st.link_button(
+                        "📤 Upload bukti pembayaran dan pemilihan slot",
+                        ev_data.get("payment_form_url", form_url),
+                        width="stretch",
+                        type="primary",
+                    )
+
+                else:
+                    slot_items = []
+                    if parking_lot: slot_items.append(("🅿️ Parking Lot", parking_lot))
+                    if fnb_lot: slot_items.append(("🍴 F&B Lot", fnb_lot))
+                    if ft_lot and ft_lot != fnb_lot: slot_items.append(("🚚 Food Truck Lot", ft_lot))
+                    if arts_lot: slot_items.append(("🎨 Arts/Crafts Lot", arts_lot))
+
+                    if not slot_items:
+                        l_col = find_lot_column(df)
+                        if l_col and clean_text_field(row.get(l_col, "")):
+                            slot_items.append(("📍 Lot / Ruang Niaga", clean_text_field(row.get(l_col, ""))))
+
+                    show_success_dialog(row, plate_norm, status, paid, slot_items)
+
+                    with st.container(border=True):
+                        st.success("✓ **Permohonan Disahkan & Bayaran Diterima**")
+
+                    _render_notes(row, COL_REMARK)
+
+                    if slot_items:
+                        cols = st.columns(2)
+                        for i, (label, val) in enumerate(slot_items):
+                            with cols[i % 2]:
+                                st.markdown(
+                                    f"<div style='background:#f7f3ee; border-radius:6px; padding:0.4rem 0.6rem; margin-bottom:0.3rem; font-size:0.82rem;'><b>{label}:</b> {val}</div>",
+                                    unsafe_allow_html=True,
+                                )
+
+                    if products_text:
+                        render_products_box(products_text)
+
+                    st.link_button(
+                        "💬 Join WhatsApp Group Vendor",
+                        whatsapp_group,
+                        width="stretch",
+                        type="primary",
+                    )
+                    st.balloons()
 
 st.divider()
 
@@ -366,8 +542,8 @@ st.divider()
 # 7. HARGA SEWA TAPAK & DEPOSIT
 # ==========================================
 st.markdown('<div id="harga-sewa"></div>', unsafe_allow_html=True)
-st.markdown("<h3 style='font-size: 1.8rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
-st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak. Harga kadar sewa tidak termasuk deposit.")
+st.markdown("<h3 style='font-size: 1.6rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
+st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak.")
 
 pricing_rows = [
     {"Kategori Tapak": "Car Boot Sales", "Kadar Sewa": format_rm(ev_data.get("price_car_boot", 160)), "Deposit": format_rm(0)},
@@ -383,7 +559,7 @@ st.divider()
 # 8. LAYOUT TAPAK CAR BOOT SALE (DENGAN LAYOUT.PNG)
 # ==========================================
 st.markdown('<div id="layout-tapak"></div>', unsafe_allow_html=True)
-st.markdown("<h3 style='font-size: 1.8rem;'>🗺️ Layout Niaga</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='font-size: 1.6rem;'>🗺️ Layout & Zon Tapak Niaga</h3>", unsafe_allow_html=True)
 st.caption("Pelan susun atur ruang niaga dan tapak rasmi di perkarangan Penang Ferry Museum.")
 
 with st.container(border=True):
@@ -394,16 +570,13 @@ with st.container(border=True):
         st.warning("⚠️ Fail gambar `layout.png` tidak dijumpai di dalam folder `assets/`.")
 
     st.markdown("""
-    <div style="background-color: #FFFCF7; padding: 1rem; border-radius: 8px; border: 1px dashed #D97706; margin-top: 10px;">
-        <h4 style="color: #78350F; margin-top: 0;">📍 Layout PFM</h4>
-        <p style="color: #57534e; font-size: 14px;">
-            Zon tapak dibahagikan mengikut kategori kenderaan dan perniagaan bagi memastikan aliran trafik pengunjung lancar serta selesa:
-        </p>
-        <ul style="color: #57534e; font-size: 14px; line-height: 1.6;">
-            <li><b>Lot A - Lot F (Car Boot Sales):</b> Bahagian utama berhampiran pintu masuk muzium (Khas untuk berniaga terus dari bonet kereta).</li>
-            <li><b>Zon H - Lot I (F&B / Makanan & Minuman):</b> Ruang khusus untuk vendor F&B.</li>
-            <li><b>Zon K (Food Truck):</b> Khas untuk trak makanan (food truck).</li>
-            <li><b>Zon J (Arts, Crafts & Retail):</b> Tapak khemah khas produk kraftangan, pakaian, dan aksesori.</li>
+    <div style="background-color: #FFFCF7; padding: 0.8rem; border-radius: 8px; border: 1px dashed #D97706; margin-top: 10px;">
+        <h4 style="color: #78350F; margin-top: 0; font-size: 1rem;">📍 Panduan Zon Tapak PFM</h4>
+        <ul style="color: #57534e; font-size: 0.85rem; line-height: 1.5; margin-bottom: 0;">
+            <li><b>Zon A (Car Boot Sales):</b> Khas untuk kenderaan peserta berniaga terus dari bonet.</li>
+            <li><b>Zon B (F&B):</b> Ruang pengudaraan luas dengan kemudahan memasak selamat.</li>
+            <li><b>Zon C (Food Truck):</b> Lot parkir berturap rata khas untuk trak makanan.</li>
+            <li><b>Zon D (Arts, Crafts & Retail):</b> Tapak khemah produk kraftangan & pakaian.</li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
