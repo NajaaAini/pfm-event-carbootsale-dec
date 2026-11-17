@@ -210,15 +210,9 @@ def show_status_dialog(row, plate_norm, status, paid, products_text, lot_info):
 if st.button("⬅️ Kembali ke Menu Utama"):
     st.switch_page("info_page.py")
 
-st.markdown("""
-<div style="text-align: center; margin-bottom: 0.5rem; margin-top: 1rem;">
-    <span style="font-size: 12px; font-weight: 700; color: #78350F; letter-spacing: 0.5px;">📌 PINTASAN PANTAS (NAVIGATION)</span>
-</div>
-""", unsafe_allow_html=True)
-
 nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
 with nav_col1:
-    if st.button("📝 Daftar Vendor", use_container_width=True):
+    if st.button("Pendaftaran Vendor", use_container_width=True):
         components.html("""
             <script>
                 const el = window.parent.document.getElementById('daftar-vendor');
@@ -226,7 +220,7 @@ with nav_col1:
             </script>
         """, height=0)
 with nav_col2:
-    if st.button("🔍 Semak Status", use_container_width=True):
+    if st.button("Semak Status", use_container_width=True):
         components.html("""
             <script>
                 const el = window.parent.document.getElementById('semak-status');
@@ -234,7 +228,7 @@ with nav_col2:
             </script>
         """, height=0)
 with nav_col3:
-    if st.button("💰 Harga & Sewa", use_container_width=True):
+    if st.button("Harga & Sewa", use_container_width=True):
         components.html("""
             <script>
                 const el = window.parent.document.getElementById('harga-sewa');
@@ -242,7 +236,7 @@ with nav_col3:
             </script>
         """, height=0)
 with nav_col4:
-    if st.button("🗺️ Layout Tapak", use_container_width=True):
+    if st.button("Layout Tapak", use_container_width=True):
         components.html("""
             <script>
                 const el = window.parent.document.getElementById('layout-tapak');
