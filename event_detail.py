@@ -280,7 +280,7 @@ with nav_col2:
     if st.button("Semak Status", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('semak-status'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col3:
-    if st.button("Harga & Sewa", use_container_width=True):
+    if st.button("Harga Tapak", use_container_width=True):
         components.html("""<script>const el = window.parent.document.getElementById('harga-sewa'); if (el) { el.scrollIntoView({ behavior: 'smooth' }); }</script>""", height=0)
 with nav_col4:
     if st.button("Layout Tapak", use_container_width=True):
@@ -506,7 +506,7 @@ st.divider()
 # ==========================================
 st.markdown('<div id="harga-sewa"></div>', unsafe_allow_html=True)
 st.markdown("<h3 style='font-size: 1.6rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
-st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak.")
+st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak. Kadar sewa tidak termasuk deposit.")
 
 pricing_rows = [
     {"Kategori Tapak": "Car Boot Sales", "Kadar Sewa": format_rm(ev_data.get("price_car_boot", 160)), "Deposit": format_rm(0)},
