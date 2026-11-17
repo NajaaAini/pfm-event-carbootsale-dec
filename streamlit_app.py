@@ -1,6 +1,8 @@
 # ============================================================
 # streamlit_app.py — PFM PORTAL (SECRETS MULTI-EVENT)
 # ============================================================
+import base64
+from pathlib import Path
 import streamlit as st
 from style import apply_style
 
@@ -10,13 +12,21 @@ apply_style()
 is_admin = st.session_state.get("is_admin", False)
 
 # ============================================================
+# HELPER FUNCTION (Diletakkan di luar blok sidebar)
+# ============================================================
+def _image_base64(image_path):
+    path = Path(image_path)
+    if not path.exists():
+        return None
+    with open(path, "rb") as f:
+        return base64.b64encode(f.read()).decode()
+
+# ============================================================
 # 1. DAFTAR PAGES
 # ============================================================
 info_page = st.Page("info_page.py", title="Pendaftaran Vendor", default=True)
 
 # Halaman detail acara: disembunyikan dari sidebar.
-# Streamlit terkini  -> guna visibility="hidden".
-# Streamlit lama     -> daftar biasa, menu sidebar dibina sendiri (lihat bawah).
 HIDDEN_PAGE_SUPPORTED = True
 try:
     event_detail_page = st.Page(
@@ -47,31 +57,15 @@ if HIDDEN_PAGE_SUPPORTED:
 else:
     flat_pages = [info_page, event_detail_page] + (admin_pages if is_admin else [])
     try:
-        # Sembunyikan menu automatik, menu dibina sendiri dalam sidebar
         pg = st.navigation(flat_pages, position="hidden")
         custom_menu = True
     except TypeError:
-        # Streamlit terlalu lama: semua halaman akan kelihatan. Sila naik taraf Streamlit.
         pg = st.navigation(flat_pages)
 
 # ============================================================
 # 3. SIDEBAR (MENU, PILIHAN EVENT DARI SECRETS & ADMIN LOGIN)
-# ============================================
-with st.sidebar:
-    
 # ============================================================
-# SIDEBAR — BRANDED HEADER + LOGIN
-# ============================================================
-def _image_base64(image_path):
-    path = Path(image_path)
-    if not path.exists():
-        return None
-    with open(path, "rb") as f:
-        return base64.b64encode(f.read()).decode()
-
-
 with st.sidebar:
-
     # --- Brand header dengan icon PFM ---
     logo_b64 = _image_base64("assets/icon.jpg")
 
@@ -151,7 +145,6 @@ with st.sidebar:
             )
 
             selected_key = event_options[selected_event_name]
-            # Simpan dalam session state supaya page admin boleh baca
             st.session_state["active_event"] = dict(st.secrets[selected_key])
             st.session_state["active_event_name"] = selected_event_name
         else:
@@ -161,7 +154,6 @@ with st.sidebar:
 
         st.markdown("---")
     else:
-        # Untuk pengguna biasa/public, tetapkan default ke event_1 secara automatik
         if "active_event" not in st.session_state:
             event_keys = [k for k in st.secrets.keys() if k.startswith("event_")]
             if event_keys:
@@ -192,7 +184,6 @@ with st.sidebar:
 
         st.markdown("---")
         try:
-            # Ambil link Google Sheet mengikut event yang sedang dipilih
             active_sheet_url = (
                 st.session_state.get("active_event", {}).get("sheet_url")
                 or st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet", "")
