@@ -5,6 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_gsheets import GSheetsConnection
 
 from style import apply_style
@@ -83,6 +84,12 @@ def find_products_column(df_):
         if "Senarai Produk yang Dijual" in str(c): return c
     return None
 
+def find_lot_column(df_):
+    for c in df_.columns:
+        if any(k in str(c).lower() for k in ["lot", "no. lot", "space", "tapak"]):
+            return c
+    return None
+
 def normalize_plate(series):
     return series.astype(str).str.upper().str.replace(" ", "")
 
@@ -121,9 +128,9 @@ def show_not_found_dialog(query):
     if st.button("Tutup", use_container_width=True): st.rerun()
 
 @st.dialog("Status Permohonan", width="large")
-def show_status_dialog(row, plate_norm, status, paid, products_text):
+def show_status_dialog(row, plate_norm, status, paid, products_text, lot_info):
     st.markdown(f"### 🚗 {row[COL_PLATE]} — {row[COL_NAME]}")
-    st.caption(f"{row[COL_TYPE]}")
+    st.caption(f"Kategori: {row[COL_TYPE]}")
 
     if status == "Pending":
         st.warning("⏳ Permohonan Sedang Disemak (2-3 hari bekerja). Belum perlu bayar.")
@@ -134,6 +141,11 @@ def show_status_dialog(row, plate_norm, status, paid, products_text):
     elif status == "Approved":
         if paid:
             st.success("✅ Permohonan Disahkan & Bayaran Diterima.")
+            
+            # Papar Lot Pilihan jika ada
+            if lot_info:
+                st.info(f"📍 **Lot / Ruang Niaga Anda:** {lot_info}")
+
             if products_text:
                 with st.container(border=True):
                     st.caption("🛍️ Senarai Produk Anda")
@@ -143,8 +155,37 @@ def show_status_dialog(row, plate_norm, status, paid, products_text):
         else:
             if check_payment_uploaded(plate_norm):
                 st.info("⏳ Bayaran Sedang Disemak (1-2 hari bekerja).")
+                if lot_info:
+                    st.info(f"📍 **Lot Pilihan:** {lot_info}")
             else:
                 st.info("📤 Sila buat pembayaran & muat naik bukti bayaran.")
+                
+                # Kira anggaran harga berdasarkan kategori produk
+                v_type = str(row[COL_TYPE]).lower()
+                if "f&b" in v_type or "makanan" in v_type:
+                    rent = float(ev_data.get("price_fb", 400))
+                    dep = float(ev_data.get("deposit_fb", 100))
+                elif "truck" in v_type:
+                    rent = float(ev_data.get("price_ft", 400))
+                    dep = float(ev_data.get("deposit_ft", 100))
+                elif "art" in v_type or "craft" in v_type or "lain" in v_type:
+                    rent = float(ev_data.get("price_others", 200))
+                    dep = float(ev_data.get("deposit_others", 100))
+                else:
+                    rent = float(ev_data.get("price_car_boot", 160))
+                    dep = float(ev_data.get("deposit_car_boot", 0))
+                
+                total_amt = rent + dep
+                
+                with st.container(border=True):
+                    st.markdown(f"**💰 Ringkasan Bayaran Perlu Dibuat:**")
+                    st.write(f"- Kadar Sewa Tapak: {format_rm(rent)}")
+                    st.write(f"- Deposit Keselamatan: {format_rm(dep)}")
+                    st.markdown(f"### **Jumlah Keseluruhan: {format_rm(total_amt)}**")
+
+                if lot_info:
+                    st.info(f"📍 **Lot Tapaga Anda:** {lot_info}")
+
                 new_phone = st.text_input("No. Telefon", value=format_phone_display(str(row.get(COL_PHONE, ""))))
                 new_products = st.text_area("Senarai Produk", value=products_text, height=68)
                 cs1, cs2 = st.columns(2)
@@ -159,15 +200,61 @@ def show_status_dialog(row, plate_norm, status, paid, products_text):
                             st.rerun()
                 with cs2:
                     p_url = ev_data.get("payment_form_url", "")
-                    if p_url: st.link_button("📄 Muat Naik Bukti", p_url, use_container_width=True)
+                    if p_url: 
+                        st.link_button("📤 Upload bukti pembayaran dan pemilihan slot", p_url, use_container_width=True)
     if st.button("Tutup", use_container_width=True): st.rerun()
 
 # ==========================================
-# 4. PAPARAN UTAMA
+# 4. TOP NAVIGATION BAR (MENU PANTAS)
 # ==========================================
 if st.button("⬅️ Kembali ke Menu Utama"):
     st.switch_page("info_page.py")
 
+st.markdown("""
+<div style="text-align: center; margin-bottom: 0.5rem; margin-top: 1rem;">
+    <span style="font-size: 12px; font-weight: 700; color: #78350F; letter-spacing: 0.5px;">📌 PINTASAN PANTAS (NAVIGATION)</span>
+</div>
+""", unsafe_allow_html=True)
+
+nav_col1, nav_col2, nav_col3, nav_col4 = st.columns(4)
+with nav_col1:
+    if st.button("📝 Daftar Vendor", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('daftar-vendor');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+with nav_col2:
+    if st.button("🔍 Semak Status", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('semak-status');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+with nav_col3:
+    if st.button("💰 Harga & Sewa", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('harga-sewa');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+with nav_col4:
+    if st.button("🗺️ Layout Tapak", use_container_width=True):
+        components.html("""
+            <script>
+                const el = window.parent.document.getElementById('layout-tapak');
+                if (el) { el.scrollIntoView({ behavior: 'smooth' }); }
+            </script>
+        """, height=0)
+
+st.divider()
+
+# ==========================================
+# 5. PAPARAN UTAMA & HERO
+# ==========================================
 st.markdown(f"<h1 style='text-align: center; font-size: 2.8rem;'>{event_name}</h1>", unsafe_allow_html=True)
 st.write("") 
 
@@ -181,24 +268,22 @@ with col_left:
         st.info("Tiada banner.")
 
 with col_right:
-    # KOTAK DETAILS ACARA
     with st.container(border=True):
         st.markdown("<h4 style='font-size: 1.5rem; margin-bottom: 0px;'>📌 Maklumat Rasmi Acara</h4>", unsafe_allow_html=True)
         st.markdown("---")
         
         d_col1, d_col2 = st.columns([1, 2])
         with d_col1: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Tarikh Acara:</p>", unsafe_allow_html=True)
-        with d_col2: st.markdown("<p style='font-size: 1.1rem;'>11–13 December 2026</p>", unsafe_allow_html=True)
+        with d_col2: st.markdown(f"<p style='font-size: 1.1rem;'>{event_date_str}</p>", unsafe_allow_html=True)
             
         d_col3, d_col4 = st.columns([1, 2])
         with d_col3: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Masa Operasi:</p>", unsafe_allow_html=True)
-        with d_col4: st.markdown("<p style='font-size: 1.1rem;'>4:00 PM – 12:00 AM</p>", unsafe_allow_html=True)
+        with d_col4: st.markdown(f"<p style='font-size: 1.1rem;'>{event_time_str}</p>", unsafe_allow_html=True)
             
         d_col5, d_col6 = st.columns([1, 2])
         with d_col5: st.markdown("<p style='font-size: 1.1rem; font-weight: bold;'>Lokasi Tapak:</p>", unsafe_allow_html=True)
         with d_col6: st.markdown(f"<p style='font-size: 1.1rem;'>{event_venue_str}</p>", unsafe_allow_html=True)
 
-    # Sub-column untuk Countdown & Total Vendor
     sub_col1, sub_col2 = st.columns(2)
     with sub_col1:
         with st.container(border=True):
@@ -226,39 +311,30 @@ with col_right:
             val_text = f"{total_vendor} / {max_s} Slot" if max_s else str(total_vendor)
             st.metric("Vendor Berdaftar", val_text)
 
-    # BORANG PENDAFTARAN VENDOR DI BAWAH COUNTDOWN
-    st.markdown("<h3 style='font-size: 1.5rem; margin-top: 15px;'>📝 Pendaftaran Vendor</h3>", unsafe_allow_html=True)
-    st.link_button("BORANG PENDAFTARAN VENDOR", form_url, type="primary", use_container_width=True)
+    # BORANG PENDAFTARAN VENDOR
+    st.divider()
+    st.markdown('<div id="daftar-vendor"></div>', unsafe_allow_html=True)
+    st.markdown("<h3 style='font-size: 1.5rem; margin-top: 5px;'>📝 Pendaftaran Vendor</h3>", unsafe_allow_html=True)
+    st.caption("Sila klik butang di bawah untuk mendaftar slot perniagaan anda melalui Google Form.")
+    st.link_button("Buka Borang Pendaftaran Vendor", form_url, type="primary", use_container_width=True)
 
 st.divider()
 
-st.markdown("<h3 style='font-size: 1.8rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
-st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak.")
-
-pricing_rows = [
-    {"Kategori Tapak": "Car Boot Sales", "Kadar Sewa": format_rm(ev_data.get("price_car_boot", 160)), "Deposit": format_rm(0)},
-    {"Kategori Tapak": "F&B", "Kadar Sewa": format_rm(ev_data.get("price_fb", 400)), "Deposit": format_rm(ev_data.get("deposit_fb", 100))},
-    {"Kategori Tapak": "Food Truck", "Kadar Sewa": format_rm(ev_data.get("price_ft", 400)), "Deposit": format_rm(ev_data.get("deposit_ft", 100))},
-    {"Kategori Tapak": "Arts / Crafts & Lain-lain", "Kadar Sewa": format_rm(ev_data.get("price_others", 200)), "Deposit": format_rm(ev_data.get("deposit_others", 100))},
-]
-st.dataframe(pd.DataFrame(pricing_rows), hide_index=True, use_container_width=True)
-
-st.divider()
-
+# ==========================================
+# 6. SEMAK STATUS KELAYAKAN
+# ==========================================
+st.markdown('<div id="semak-status"></div>', unsafe_allow_html=True)
 st.markdown("<h3 style='font-size: 1.8rem;'>🔍 Semak Status Kelayakan</h3>", unsafe_allow_html=True)
-st.caption("Masukkan No. Plate kenderaan anda untuk menyemak status.")
+st.caption("Masukkan No. Plate kenderaan anda untuk menyemak status permohonan.")
 
-# KOTAK PUTIH DILANJUTKAN MERANGKUMI BAHAGIAN BORANG & PERTANYAAN DI BAWAHNYA
 with st.container(border=True):
     with st.form("search_form_detail"):
         query = st.text_input("No. Plate Kenderaan", placeholder="Contoh: NNA1806").strip().upper()
         submitted = st.form_submit_button("Semak Status Kelayakan", type="primary", use_container_width=True)
 
-        st.markdown("""
+        st.markdown(f"""
         <div style='text-align: center; font-size: 0.9rem; margin-top: 0.5rem;'>
-            Belum mendaftar? <a href='https://forms.gle/7eoMCUDyQYRfLA7e8' target='_blank' style='color: #78350f; font-weight: 600; text-decoration: underline;'>Daftar Sekarang</a>
-            <br><br>
-            Ada pertanyaan? <a href='info_page' target='_self' style='color: #78350f; font-weight: 600; text-decoration: underline;'>Baca Info & Cara Mendaftar</a>
+            Belum mendaftar? <a href='{form_url}' target='_blank' style='color: #78350f; font-weight: 600; text-decoration: underline;'>Daftar Sekarang</a>
         </div>
         """, unsafe_allow_html=True)
 
@@ -276,7 +352,71 @@ if submitted and query:
         else:
             row = result.iloc[0]
             p_col = find_products_column(df)
-            show_status_dialog(row, query.replace(" ", ""), str(row["Status"]).strip(), bool(row.get("Paid", False)), clean_text_field(row.get(p_col, "")) if p_col else "")
+            l_col = find_lot_column(df)
+            
+            p_text = clean_text_field(row.get(p_col, "")) if p_col else ""
+            l_text = clean_text_field(row.get(l_col, "")) if l_col else ""
+            
+            show_status_dialog(
+                row, 
+                query.replace(" ", ""), 
+                str(row["Status"]).strip(), 
+                bool(row.get("Paid", False)), 
+                p_text, 
+                l_text
+            )
 
 st.divider()
+
+# ==========================================
+# 7. HARGA SEWA TAPAK & DEPOSIT
+# ==========================================
+st.markdown('<div id="harga-sewa"></div>', unsafe_allow_html=True)
+st.markdown("<h3 style='font-size: 1.8rem;'>💰 Harga Sewa Tapak & Deposit</h3>", unsafe_allow_html=True)
+st.caption("Nota: Deposit dipulangkan selepas acara tamat tertakluk kepada peraturan tapak.")
+
+pricing_rows = [
+    {"Kategori Tapak": "Car Boot Sales", "Kadar Sewa": format_rm(ev_data.get("price_car_boot", 160)), "Deposit": format_rm(0)},
+    {"Kategori Tapak": "F&B", "Kadar Sewa": format_rm(ev_data.get("price_fb", 400)), "Deposit": format_rm(ev_data.get("deposit_fb", 100))},
+    {"Kategori Tapak": "Food Truck", "Kadar Sewa": format_rm(ev_data.get("price_ft", 400)), "Deposit": format_rm(ev_data.get("deposit_ft", 100))},
+    {"Kategori Tapak": "Arts / Crafts & Lain-lain", "Kadar Sewa": format_rm(ev_data.get("price_others", 200)), "Deposit": format_rm(ev_data.get("deposit_others", 100))},
+]
+st.dataframe(pd.DataFrame(pricing_rows), hide_index=True, use_container_width=True)
+
+st.divider()
+
+# ==========================================
+# 8. LAYOUT TAPAK CAR BOOT SALE (DENGAN LAYOUT.PNG)
+# ==========================================
+st.markdown('<div id="layout-tapak"></div>', unsafe_allow_html=True)
+st.markdown("<h3 style='font-size: 1.8rem;'>🗺️ Layout & Zon Tapak Niaga</h3>", unsafe_allow_html=True)
+st.caption("Pelan susun atur ruang niaga dan tapak rasmi di perkarangan Penang Ferry Museum.")
+
+with st.container(border=True):
+    layout_path = Path("assets/layout.png")
+    if layout_path.exists():
+        st.image("assets/layout.png", caption="Pelan Susun Atur Tapak PFM Car Boot Sale", use_container_width=True)
+    else:
+        st.warning("⚠️ Fail gambar `layout.png` tidak dijumpai di dalam folder `assets/`.")
+
+    st.markdown("""
+    <div style="background-color: #FFFCF7; padding: 1rem; border-radius: 8px; border: 1px dashed #D97706; margin-top: 10px;">
+        <h4 style="color: #78350F; margin-top: 0;">📍 Panduan Zon Tapak PFM</h4>
+        <p style="color: #57534e; font-size: 14px;">
+            Zon tapak dibahagikan mengikut kategori kenderaan dan perniagaan bagi memastikan aliran trafik pengunjung lancar serta selesa:
+        </p>
+        <ul style="color: #57534e; font-size: 14px; line-height: 1.6;">
+            <li><b>Zon A (Car Boot Sales):</b> Bahagian utama berhampiran pintu masuk muzium (Khas untuk berniaga terus dari bonet kereta).</li>
+            <li><b>Zon B (F&B / Makanan & Minuman):</b> Ruang khusus yang mempunyai laluan pengudaraan luas dan kemudahan tapak memasak yang selamat.</li>
+            <li><b>Zon C (Food Truck):</b> Lot parkir berturap rata khas untuk trak makanan (*food truck*).</li>
+            <li><b>Zon D (Arts, Crafts & Retail):</b> Tapak khemah pameran produk kraftangan, pakaian, dan aksesori.</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.divider()
+
+# ==========================================
+# 9. HUBUNGI ADMIN
+# ==========================================
 st.link_button("📲 Ada Pertanyaan? Hubungi Admin di WhatsApp", whatsapp_admin, use_container_width=True)
