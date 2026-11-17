@@ -254,13 +254,13 @@ if events_list:
                 <div style="font-size: 14px; font-weight: 700; color: #292524; margin-bottom: 8px;">{ev['date_text']}</div>
                 <div style="font-size: 14px; color: #b45309; font-weight: 600; margin-bottom: 10px;">{ev['note']}</div>
                 <div style="font-size: 12px; color: #57534e; margin-bottom: 5px;">
-                    { 'Klik maklumat lanjut untuk pendaftaran dan semak kelayakan.' if ev['active'] else 'Maklumat pendaftaran akan diumumkan.' }
+                    { 'Klik butang untuk pendaftaran dan semak kelayakan.' if ev['active'] else 'Maklumat pendaftaran akan diumumkan.' }
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
             if st.button(
-                "ℹ️ Maklumat lanjut" if ev["active"] else "🔒 Akan datang",
+                "Daftar dan Semak Status" if ev["active"] else "🔒 Akan datang",
                 key=f"btn_info_{ev['key']}",
                 disabled=not ev["active"],
                 use_container_width=True,
