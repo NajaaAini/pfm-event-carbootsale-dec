@@ -113,7 +113,7 @@ with tab2:
     all_lots = {
         "Car Boot": [f"A{i}" for i in range(1, 13)] + [f"B{i}" for i in range(1, 11)] +
                     [f"C{i}" for i in range(1, 11)] + [f"D{i}" for i in range(1, 5)] +
-                    [f"E{i}" for i in range(1, 11)] + [f"F{i}" for i in range(1, 6)],
+                    [f"E{i}" for i in range(1, 11)] + [f"F{i}" for i in range(1, 12)],
         "F&B": [f"H{i}" for i in range(1, 22)] + [f"I{i}" for i in range(1, 18)],
         "Arts & Crafts / Others": [f"J{i}" for i in range(1, 52)],
         "Food Truck": [f"K{i:02d}" for i in range(1, 6)],
