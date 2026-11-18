@@ -626,7 +626,7 @@ def build_drive_proof_url(raw_link):
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-df = load_sheet_safe(conn, "Vendors", ttl=30)
+df = load_sheet_safe(conn, "Vendors", ttl=60)
 
 if df is None:
     st.stop()
@@ -701,7 +701,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS (DARI GOOGLE FORM)
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=30)
+payments_df = load_sheet_safe(conn, "Payments", ttl=60)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
