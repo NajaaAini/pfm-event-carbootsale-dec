@@ -701,7 +701,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS (DARI GOOGLE FORM)
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=0)
+payments_df = load_sheet_safe(conn, "Payments", ttl=15)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
