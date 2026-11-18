@@ -1,4 +1,3 @@
-
 # ============================================================
 # admin_slots.py — MULTI EVENT VERSION
 # NATIVE STREAMLIT VERSION
@@ -57,16 +56,16 @@ COL_PRODUCTS = "Senarai Produk yang Dijual"
 
 
 # ============================================================
-# OFFICIAL F&B CATEGORIES
+# OFFICIAL F&B CATEGORIES (STANDARDISED & SHORT)
 # ============================================================
 
 FB_CATEGORIES = [
     "Local Food",
     "Dessert",
     "Coffee/Air",
-    "Grill and BBQ (exp: Satay)",
-    "Deep-Fry (exp: Ayam Goreng)",
-    "Italian/Western Food",
+    "Grill and BBQ",
+    "Deep-Fry",
+    "Western Food",
     "Japanese Food",
     "Chinese Food",
 ]
@@ -232,7 +231,7 @@ with tab1:
     # F&B CATEGORY BREAKDOWN
     # --------------------------------------------------------
 
-    st.markdown("###Kategori F&B")
+    st.markdown("### Pecahan Sub-Kategori F&B")
 
     fb_rows = []
 
@@ -287,7 +286,7 @@ with tab2:
             [f"C{i}" for i in range(1, 11)] +
             [f"D{i}" for i in range(1, 5)] +
             [f"E{i}" for i in range(1, 11)] +
-            [f"F{i}" for i in range(1, 6)]
+            [f"F{i}" for i in range(1, 12)]
         ),
 
         "F&B": (
@@ -656,7 +655,7 @@ with tab3:
         # ----------------------------------------------------
 
         st.markdown(
-            "### Pecahan Sub-Kategori F&B"
+            "### Kategori F&B"
         )
 
         rows_kategori = []
@@ -686,23 +685,29 @@ with tab3:
                 )
             })
 
-
         # ----------------------------------------------------
-        # 8 CATEGORIES IN ONE ROW
-        # NATIVE STREAMLIT ONLY
+        # COMPACT CARDS (WITHOUT 'BAKI', CLEAN & NO SCROLL)
         # ----------------------------------------------------
 
         cols = st.columns(8, gap="small")
 
         for i, row in enumerate(rows_kategori):
+
             with cols[i]:
-                with st.container(border=True, height=150):
-                    st.markdown(f"**{row['Sub-Kategori']}**")
-                    st.markdown(f"### {row['Diambil']} / {row['Had']}")
-                    st.caption(f"↑ {row['Baki']} baki slot")
+
+                with st.container(height=90, border=True):
+
+                    st.markdown(
+                        f"<span style='font-size: 13px; line-height: 1.0;'>**{row['Sub-Kategori']}**</span>",
+                        unsafe_allow_html=True
+                    )
+
+                    st.markdown(
+                        f"<span style='font-size: 16px; font-weight: bold; line-height: 1.0;'>{row['Diambil']} / {row['Had']}</span>",
+                        unsafe_allow_html=True
+                    )
 
         st.divider()
-
 
         # ----------------------------------------------------
         # MENU / PRODUCT TABLE
@@ -736,7 +741,6 @@ with tab3:
 
             })
 
-
         if menu_data:
 
             st.dataframe(
@@ -763,7 +767,7 @@ with tab3:
 
                     "Menu / Produk":
                         st.column_config.TextColumn(
-                            "Menu / Produk",
+                            "Menu/Produk",
                             width="large"
                         )
 
