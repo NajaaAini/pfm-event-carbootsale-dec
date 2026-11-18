@@ -309,7 +309,7 @@ steps = [
     ("Klik maklumat lanjut", "Pilih acara di atas untuk melihat butiran lengkap dan menyemak status."),
     ("Lengkapkan borang pendaftaran", "Isi semua maklumat dengan tepat di Google Form."),
     ("Tunggu kelulusan admin", "Semak status permohonan anda di halaman khusus acara tersebut."),
-    ("Buat pembayaran", "Selepas diluluskan, teruskan pembayaran dan pilih lot pilihan anda."),
+    ("Buat pembayaran", "Jika diluluskan, teruskan pembayaran dan pilih lot pilihan anda."),
     ("Pengesahan pembayaran", "Pihak admin akan menyemak dan mengesahkan pembayaran anda."),
     ("Sertai group WhatsApp", "Sertai kumpulan WhatsApp rasmi untuk pengumuman terkini."),
 ]
