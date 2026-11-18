@@ -232,7 +232,7 @@ with tab1:
     # F&B CATEGORY BREAKDOWN
     # --------------------------------------------------------
 
-    st.markdown("### Pecahan Sub-Kategori F&B")
+    st.markdown("###Kategori F&B")
 
     fb_rows = []
 
