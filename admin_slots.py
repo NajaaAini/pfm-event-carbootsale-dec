@@ -106,14 +106,14 @@ with tab1:
 # TAB 2: MAPPING LOT (AUTO-JANA & SEMAK DARI SHEET)
 # ============================================================
 with tab2:
-    st.subheader("Senarai Lot Diambil (Approved Sahaja)")
+    st.subheader("Senarai Lot Diambil (Paid)")
     st.caption("Status 'Available' akan bertukar kepada No. Plate jika lot tersebut telah ditempah oleh vendor Approved.")
 
     # 1. Senarai lot penuh (Food Truck guna padding 0: K01-K05)
     all_lots = {
         "Car Boot": [f"A{i}" for i in range(1, 13)] + [f"B{i}" for i in range(1, 11)] +
                     [f"C{i}" for i in range(1, 11)] + [f"D{i}" for i in range(1, 5)] +
-                    [f"E{i}" for i in range(1, 11)] + [f"F{i}" for i in range(1, 12)],
+                    [f"E{i}" for i in range(1, 11)] + [f"F{i}" for i in range(1, 6)],
         "F&B": [f"H{i}" for i in range(1, 22)] + [f"I{i}" for i in range(1, 18)],
         "Arts & Crafts / Others": [f"J{i}" for i in range(1, 52)],
         "Food Truck": [f"K{i:02d}" for i in range(1, 6)],
@@ -241,17 +241,50 @@ with tab2:
     with c4:
         st.markdown("**Food Truck**")
         st.dataframe(build_styled_lot_df(all_lots["Food Truck"], booked_lots), hide_index=True, use_container_width=True, height=700)
-# ============================================================
+## ============================================================
 # TAB 3: MENU F&B (APPROVED SAHAJA)
 # ============================================================
 with tab3:
-    st.subheader("Senarai Menu F&B (Approved Sahaja)")
-
+    st.subheader("🍔 Dashboard Menu F&B (Paid)")
+    
+    # 1. Tapis vendor F&B yang Approved sahaja
     fb_df = df[(df[COL_TYPE] == "F&B") & (df["Status"] == "Approved")].copy()
 
     if fb_df.empty:
-        st.info("Tiada vendor F&B yang berstatus Approved.")
+        st.info("Tiada vendor F&B yang berstatus Approved buat masa ini.")
     else:
+        # 2. Bahagian Dashboard Kategori (Macam dalam gambar)
+        st.markdown("**Sub-Kategori F&B**")
+        
+        # Kira jumlah diambil (Approved) bagi setiap sub-kategori
+        rows_kategori = []
+        for cat in FB_CATEGORIES:
+            c_used = len(fb_df[fb_df[COL_CAT] == cat])
+            rows_kategori.append({
+                "Sub-Kategori": cat,
+                "Diambil": c_used,
+                "Had": FB_CAT_LIMIT,
+                "Baki": max(0, FB_CAT_LIMIT - c_used),
+            })
+            
+        df_kategori = pd.DataFrame(rows_kategori)
+
+        # Paparkan sebagai Metric Cards menggunakan st.columns supaya nampak macam dashboard
+        cols = st.columns(4)
+        for i, row in enumerate(rows_kategori):
+            with cols[i % 4]:
+                st.metric(
+                    label=row["Sub-Kategori"],
+                    value=f"{row['Diambil']} / {row['Had']}",
+                    delta=f"{row['Baki']} baki slot",
+                    delta_color="off" if row["Diambil"] < row["Had"] else "inverse"
+                )
+                
+        st.divider()
+
+        # 3. Senarai Menu F&B (Jadual)
+        st.markdown("**Senarai Menu / Produk F&B**")
+        
         menu_data = []
         for _, row in fb_df.iterrows():
             menu = str(row.get(COL_PRODUCTS, ""))
