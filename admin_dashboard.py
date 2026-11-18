@@ -626,7 +626,7 @@ def build_drive_proof_url(raw_link):
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-df = load_sheet_safe(conn, "Vendors", ttl=0)
+df = load_sheet_safe(conn, "Vendors", ttl=15)
 
 if df is None:
     st.stop()
