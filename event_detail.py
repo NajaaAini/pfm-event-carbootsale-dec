@@ -235,7 +235,7 @@ def show_pending_dialog(row, plate, products_text=""):
         "<div style='text-align:center; padding:0.2rem 0 0.5rem 0;'>"
         "<div style='font-size:2.2rem; line-height:1;'>⏳</div>"
         "<div style='font-size:1.15rem; font-weight:700; color:#92400e; margin-top:0.3rem;'>Permohonan Sedang Disemak</div>"
-        "<div style='font-size:0.85rem; color:#a16207; margin-top:0.2rem;'>Anggaran 2-3 hari bekerja</div>"
+        "<div style='font-size:0.85rem; color:#a16207; margin-top:0.2rem;'>Anggaran 1-2 hari bekerja</div>"
         "</div>",
         unsafe_allow_html=True,
     )
