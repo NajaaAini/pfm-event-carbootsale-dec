@@ -626,7 +626,14 @@ def build_drive_proof_url(raw_link):
 # ============================================================
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-df = load_sheet_safe(conn, "Vendors", ttl=60)
+# --- TAMBAHAN: Ambil URL sheet ikut event yang dipilih ---
+SHEET_URL = (
+    active_event.get("sheet_url")
+    or active_event.get("previous_sheet_url")
+    or st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet", "")
+)
+
+df = load_sheet_safe(conn, "Vendors", ttl=0, spreadsheet_url=SHEET_URL)
 
 if df is None:
     st.stop()
@@ -701,7 +708,7 @@ df["Notes"] = df["Notes"].astype("object").fillna("").astype(str)
 # ============================================================
 # LOAD PAYMENTS (DARI GOOGLE FORM)
 # ============================================================
-payments_df = load_sheet_safe(conn, "Payments", ttl=60)
+payments_df = load_sheet_safe(conn, "Payments", ttl=0, spreadsheet_url=SHEET_URL)
 if payments_df is None or payments_df.empty:
     payments_df = pd.DataFrame(
         columns=[
@@ -834,7 +841,7 @@ def others_pending():
 
 def safe_update(conn, df, sheet_name="Vendors"):
     try:
-        fresh = load_sheet_safe(conn, sheet_name, ttl=0)
+        fresh = load_sheet_safe(conn, sheet_name, ttl=0, spreadsheet_url=SHEET_URL)
     except Exception:
         fresh = None
 
@@ -853,7 +860,7 @@ def safe_update(conn, df, sheet_name="Vendors"):
     if COL_PHONE in df.columns:
         df[COL_PHONE] = df[COL_PHONE].astype("object").fillna("").astype(str)
 
-    conn.update(data=df)
+    conn.update(data=df, spreadsheet=SHEET_URL)
 
 
 # ============================================================
@@ -1400,7 +1407,7 @@ def edit_vendor_dialog(plate):
             df.at[idx, "Status"] = new_status
             df.at[idx, "Notes"] = new_note.strip()
 
-            conn.update(data=df)
+            conn.update(data=df, spreadsheet=SHEET_URL)
 
             changes = []
             if old_plate != new_plate.upper(): changes.append(f"Plate: '{old_plate}' → '{new_plate.upper()}'")
@@ -1684,7 +1691,7 @@ if show_section("3️⃣ Rekod Bayaran (Baru)"):
             })
 
     section_header("3", "Sahkan Bayaran",
-                   "Vendor yang sudah upload bukti bayaran — menunggu pengesahan admin",
+                   "Vendor yang sudah upload bukti bayaran — tick & sahkan",
                    len(pending_verify))
 
     if not pending_verify:
@@ -1716,22 +1723,31 @@ if show_section("3️⃣ Rekod Bayaran (Baru)"):
 
             new_df = new_df.sort_values(["Kategori", "Plate"]).reset_index(drop=True)
 
-            display_cols = ["Plate", "Nama", "Telefon", "Kategori",
-                            "F&B Category", "Total", "Status", "Timestamp", "Bukti"]
-            new_display = new_df[display_cols].copy()
+            # ---- Tambah column checkbox (default False) ----
+            new_df.insert(0, "✓", False)
 
-            for c in new_display.columns:
-                if c != "Bukti":
-                    new_display[c] = new_display[c].astype(str)
+            # ---- Susun column untuk editor ----
+            editor_cols = ["✓", "Bukti", "Plate", "Nama", "Telefon",
+                           "Kategori", "F&B Category", "Total", "Status", "Timestamp"]
+            editor_df = new_df[editor_cols].copy()
 
-            new_table_height = min(max(len(new_display) * 35 + 45, 200), 400)
+            for c in ["Plate", "Nama", "Telefon", "Kategori", "F&B Category",
+                      "Total", "Status", "Timestamp"]:
+                editor_df[c] = editor_df[c].astype(str)
 
-            st.dataframe(
-                new_display,
+            # ---- Data editor ----
+            edited = st.data_editor(
+                editor_df,
                 hide_index=True,
                 use_container_width=True,
-                height=new_table_height,
+                key="verify_payment_editor",
                 column_config={
+                    "✓": st.column_config.CheckboxColumn(
+                        "✓", width="small", default=False,
+                    ),
+                    "Bukti": st.column_config.LinkColumn(
+                        "Bukti", display_text="Buka 📄", width="small",
+                    ),
                     "Plate": st.column_config.TextColumn("Plate", width="small"),
                     "Nama": st.column_config.TextColumn("Nama", width="medium"),
                     "Telefon": st.column_config.TextColumn("Telefon", width="small"),
@@ -1740,39 +1756,51 @@ if show_section("3️⃣ Rekod Bayaran (Baru)"):
                     "Total": st.column_config.TextColumn("Total", width="small"),
                     "Status": st.column_config.TextColumn("Status", width="small"),
                     "Timestamp": st.column_config.TextColumn("Timestamp", width="medium"),
-                    "Bukti": st.column_config.LinkColumn("Bukti", display_text="Buka 📄", width="small"),
                 },
+                disabled=["Bukti", "Plate", "Nama", "Telefon", "Kategori",
+                          "F&B Category", "Total", "Status", "Timestamp"],
             )
 
+            # ---- Kira yang ditick ----
+            ticked = edited[edited["✓"] == True]
+
             st.markdown("")
-            sub_header("💰 Sahkan Bayaran")
-            st.caption("Pilih vendor → klik Sahkan. Vendor akan jadi Approved + Paid.")
 
-            vendor_options_map = {}
-            for _, r in new_df.iterrows():
-                key = f"{r['Plate']} — {r['Nama']}"
-                if key not in vendor_options_map:
-                    vendor_options_map[key] = r["Plate"]
-
-            approve_options = ["— Pilih vendor —"] + list(vendor_options_map.keys())
-
-            ac1, ac2 = st.columns([3, 1])
-            with ac1:
-                approve_choice = st.selectbox(
-                    "Vendor untuk sahkan bayaran",
-                    options=approve_options,
-                    key="new_pay_approve_select",
-                    label_visibility="collapsed",
+            cta1, cta2 = st.columns([2, 1])
+            with cta1:
+                st.caption(
+                    f"**{len(ticked)}** vendor ditick untuk disahkan."
+                    if len(ticked) else "Tick ✓ pada baris yang nak disahkan."
                 )
-            with ac2:
-                if st.button("💰 Sahkan Bayaran", type="primary", use_container_width=True,
-                             key="new_pay_approve_btn"):
-                    if approve_choice and approve_choice != "— Pilih vendor —":
-                        plate_pick = vendor_options_map[approve_choice]
-                        row_pick = df[df[COL_PLATE] == plate_pick].iloc[0]
-                        confirm_verify_payment_dialog(plate_pick, row_pick[COL_NAME])
-                    else:
-                        st.error("Sila pilih vendor.")
+            with cta2:
+                if st.button(
+                    f"💰 Sahkan Bayaran ({len(ticked)})",
+                    type="primary",
+                    use_container_width=True,
+                    key="verify_payment_btn",
+                    disabled=(len(ticked) == 0),
+                ):
+                    plates_to_verify = ticked["Plate"].tolist()
+                    names_map = dict(zip(ticked["Plate"], ticked["Nama"]))
+
+                    for p in plates_to_verify:
+                        df.loc[df[COL_PLATE] == p, "Paid"] = True
+                        df.loc[df[COL_PLATE] == p, "Status"] = "Approved"
+
+                    safe_update(conn, df, sheet_name="Vendors")
+
+                    for p in plates_to_verify:
+                        log_action(conn, ADMIN_NAME, "VERIFY_PAYMENT", p,
+                                   f"Sahkan bayaran: {names_map.get(p, '')}")
+
+                    st.toast(f"💰 {len(plates_to_verify)} vendor disahkan", icon="💰")
+                    st.rerun()
+
+            st.markdown("")
+            st.caption(
+                "💡 Klik **Buka 📄** untuk tengok bukti bayaran dulu, "
+                "kemudian tick ✓ dan tekan butang sahkan."
+            )
 
     st.divider()
 
