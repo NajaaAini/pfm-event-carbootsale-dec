@@ -42,6 +42,10 @@ MONTHS_MS = [
 
 FALLBACK_OPEN_DATES = {1: "2026-11-23", 2: "2026-11-26"}
 
+# --- TAMBAHAN: event yang butangnya aktif ---
+ACTIVE_EVENT_KEYS = {"event_1", "event_2"}
+# --------------------------------------------
+
 STATUS_BADGES = {
     "open": ("🟢 Pendaftaran dibuka", "green"),
     "soon": ("🟡 Akan datang", "orange"),
@@ -66,7 +70,7 @@ def build_events():
     for idx, key in enumerate(keys):
         data = st.secrets[key]
         event_date = parse_date(data.get("event_date"))
-        open_date = parse_date(data.get("reg_open_date", FALLBACK_OPEN_DATES.get(idx)))
+        open_date = parse_date(data.get("reg_open_date", FALLBACK_OPEN_DATES.get(idx + 1)))
 
         if event_date and TODAY > event_date:
             status, note = "closed", "Pendaftaran telah ditutup"
@@ -78,7 +82,8 @@ def build_events():
         else:
             status, note = "open", "Pendaftaran kini dibuka"
 
-        active = bool(data.get("active", key == "event_1"))
+        # --- Aktif hanya jika key dalam ACTIVE_EVENT_KEYS ---
+        active = key in ACTIVE_EVENT_KEYS
         if not active and status == "open":
             status, note = "soon", "Maklumat akan diumumkan"
 
@@ -276,6 +281,10 @@ if events_list:
             ):
                 st.query_params.clear()
                 st.query_params["event"] = ev["key"]
+                
+                # Simpan dalam session_state supaya tak hilang masa switch_page
+                st.session_state["selected_event"] = ev["key"]
+                
                 st.switch_page("event_detail.py")
         
         st.write("")
