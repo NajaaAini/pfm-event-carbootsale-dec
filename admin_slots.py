@@ -100,8 +100,15 @@ conn = st.connection(
     type=GSheetsConnection
 )
 
-df = load_sheet_safe(conn, "Vendors", ttl=0)
-payments_df = load_sheet_safe(conn, "Payments", ttl=0)
+# --- TAMBAHAN: Ambil URL sheet ikut event yang dipilih ---
+SHEET_URL = (
+    active_event.get("sheet_url")
+    or active_event.get("previous_sheet_url")
+    or st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet", "")
+)
+
+df = load_sheet_safe(conn, "Vendors", ttl=0, spreadsheet_url=SHEET_URL)
+payments_df = load_sheet_safe(conn, "Payments", ttl=0, spreadsheet_url=SHEET_URL)
 
 if df is None:
     st.stop()
