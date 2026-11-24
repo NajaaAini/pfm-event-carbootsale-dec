@@ -72,20 +72,25 @@ def build_events():
         event_date = parse_date(data.get("event_date"))
         open_date = parse_date(data.get("reg_open_date", FALLBACK_OPEN_DATES.get(idx + 1)))
 
-        if event_date and TODAY > event_date:
-            status, note = "closed", "Pendaftaran telah ditutup"
-        elif open_date and TODAY < open_date:
-            if idx == 0:
-                status, note = "soon", f"Pendaftaran dibuka: {format_date(open_date)}"
-            else:
-                status, note = "soon", "Pendaftaran akan dibuka tidak lama lagi"
-        else:
-            status, note = "open", "Pendaftaran kini dibuka"
-
-        # --- Aktif hanya jika key dalam ACTIVE_EVENT_KEYS ---
+        # --- DIKEMASKINI: Jika event aktif, paksa status 'open' (Hijau) ---
         active = key in ACTIVE_EVENT_KEYS
-        if not active and status == "open":
-            status, note = "soon", "Maklumat akan diumumkan"
+        
+        if active:
+            status, note = "open", "Pendaftaran kini dibuka"
+        else:
+            if event_date and TODAY > event_date:
+                status, note = "closed", "Pendaftaran telah ditutup"
+            elif open_date and TODAY < open_date:
+                if idx == 0:
+                    status, note = "soon", f"Pendaftaran dibuka: {format_date(open_date)}"
+                else:
+                    status, note = "soon", "Pendaftaran akan dibuka tidak lama lagi"
+            else:
+                status, note = "open", "Pendaftaran kini dibuka"
+
+            if not active and status == "open":
+                status, note = "soon", "Maklumat akan diumumkan"
+        # -----------------------------------------------------------------
 
         events.append({
             "key": key,
@@ -161,7 +166,7 @@ with st.container(border=True):
     st.header("🛍️ Pendaftaran Vendor PFM", anchor=False)
     st.write("Jom berniaga bersama PFM. Daftar sebagai vendor dan pilih ruang niaga anda.")
     st.write("**Slot adalah terhad.**")
-    st.success("🎉 Pendaftaran PFM Mega Car Boot Sale X School Holiday kini dibuka !")
+    st.success("🎉 Pendaftaran PFM X Xmas kini dibuka !")
 
 
 # ==========================================
