@@ -72,7 +72,7 @@ def build_events():
         event_date = parse_date(data.get("event_date"))
         open_date = parse_date(data.get("reg_open_date", FALLBACK_OPEN_DATES.get(idx + 1)))
 
-        # --- DIKEMASKINI: Jika event aktif, paksa status 'open' (Hijau) ---
+        # --- Jika event aktif, paksa status 'open' (Hijau) ---
         active = key in ACTIVE_EVENT_KEYS
         
         if active:
@@ -90,7 +90,6 @@ def build_events():
 
             if not active and status == "open":
                 status, note = "soon", "Maklumat akan diumumkan"
-        # -----------------------------------------------------------------
 
         events.append({
             "key": key,
@@ -234,11 +233,6 @@ def get_base64_image(image_path):
     except Exception:
         return ""
 
-bg_image_base64 = ""
-img_path = Path("assets/cbssh.png")
-if img_path.exists():
-    bg_image_base64 = get_base64_image(img_path)
-
 st.divider()
 st.markdown('<div id="senarai-acara"></div>', unsafe_allow_html=True)
 st.subheader("🗓️ Senarai Acara (Daftar & Semak Status)", anchor=False)
@@ -248,18 +242,33 @@ if events_list:
     for idx, ev in enumerate(events_list):
         
         card_style = "padding: 1.5rem; border-radius: 12px; border: 1.5px solid #E8DCC7; margin-bottom: 0.5rem;"
-        if idx == 0 and bg_image_base64:
+        
+        # --- LOGIK BACKGROUND IKUT EVENT ---
+        bg_image_base64 = ""
+        
+        if ev["key"] == "event_1":
+            img_path = Path("assets/cbssh.png")
+            if img_path.exists():
+                bg_image_base64 = get_base64_image(img_path)
+        elif ev["key"] == "event_2":
+            img_path = Path("assets/headerpfm.jpeg") # Fail gambar Xmas
+            if img_path.exists():
+                bg_image_base64 = get_base64_image(img_path)
+                
+        # Jika event aktif dan ada gambar, pasang background
+        if ev["active"] and bg_image_base64:
             card_style = f"""
                 padding: 1.5rem; 
                 border-radius: 12px; 
                 border: 1.5px solid #D97706; 
                 margin-bottom: 0.5rem;
-                background-image: linear-gradient(rgba(255, 252, 247, 0.88), rgba(255, 252, 247, 0.88)), url('data:image/png;base64,{bg_image_base64}');
+                background-image: linear-gradient(rgba(255, 252, 247, 0.88), rgba(255, 252, 247, 0.88)), url('data:image/jpeg;base64,{bg_image_base64}');
                 background-size: cover;
                 background-position: center 2%;
             """
         else:
             card_style += " background-color: #FFFCF7;"
+        # -----------------------------------
 
         with st.container(border=True):
             st.markdown(f"""
