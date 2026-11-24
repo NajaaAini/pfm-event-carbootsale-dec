@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from style import apply_style
-from components import page_header, load_sheet_safe
+from components import page_header, load_sheet_safe, get_active_event
 
 st.set_page_config(page_title="Admin - Senarai Vendor", layout="wide")
 apply_style()
@@ -17,8 +17,28 @@ COL_TYPE = "Kategori Produk/Product Category"
 COL_CAT = "F&B CATEGORY"
 COL_PLATE = "Plate Number"
 
+# --- TAMBAHAN: Ambil event aktif ---
+if "active_event" in st.session_state:
+    active_event = st.session_state["active_event"]
+    event_name = st.session_state.get("active_event_name", "Event 1")
+else:
+    active_event, event_name = get_active_event()
+    st.session_state["active_event"] = active_event
+    st.session_state["active_event_name"] = event_name
+
+SHEET_URL = (
+    active_event.get("sheet_url")
+    or active_event.get("previous_sheet_url")
+    or st.secrets.get("connections", {}).get("gsheets", {}).get("spreadsheet", "")
+)
+# -----------------------------------
+
 conn = st.connection("gsheets", type=GSheetsConnection)
-df = load_sheet_safe(conn, "Vendors", ttl=0)
+
+# --- DIUBAH: Hantar SHEET_URL ---
+df = load_sheet_safe(conn, "Vendors", ttl=0, spreadsheet_url=SHEET_URL)
+# --------------------------------
+
 if df is None: st.stop()
 
 # --- PERISAI KESELAMATAN ---
