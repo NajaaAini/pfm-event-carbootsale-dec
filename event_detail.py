@@ -19,7 +19,9 @@ page_header()
 # ==========================================
 # 1. DATA EVENT & CONFIG
 # ==========================================
-event_key = st.query_params.get("event", "event_1")
+# Baca dari session_state dulu, jika tiada baru baca query params
+event_key = st.session_state.get("selected_event") or st.query_params.get("event", "event_1")
+
 if event_key not in st.secrets:
     event_key = "event_1"
 
@@ -28,6 +30,7 @@ ev_data = st.secrets.get(event_key, {})
 if not ev_data.get("active", event_key == "event_1"):
     st.info("Maklumat acara ini akan diumumkan tidak lama lagi.")
     if st.button("⬅️ Kembali ke Menu Utama"):
+        st.session_state.pop("selected_event", None)
         st.switch_page("info_page.py")
     st.stop()
 
@@ -38,6 +41,16 @@ event_venue_str = ev_data.get("venue", "Perkarangan Penang Ferry Museum")
 form_url = ev_data.get("google_form_responses_url", "https://forms.gle/7eoMCUDyQYRfLA7e8")
 whatsapp_group = ev_data.get("whatsapp_group", "https://wa.me/601157727459")
 whatsapp_admin = f"https://wa.me/601157727459?text=Hi%20Admin,%20saya%20nak%20tanya%20pasal%20{event_name.replace(' ', '%20')}"
+
+# --- TAMBAHAN: GSheets URL per event ---
+EVENT_SHEET_URL = (
+    ev_data.get("sheet_url")
+    or ev_data.get("previous_sheet_url")
+    or st.secrets.get("gsheets", {}).get("spreadsheet", "")
+)
+VENDORS_WS = ev_data.get("vendors_worksheet", "Vendors")
+PAYMENTS_WS = ev_data.get("payments_worksheet", "Payments")
+# ---------------------------------------
 
 TIMEZONE = ZoneInfo("Asia/Kuala_Lumpur")
 
@@ -140,15 +153,15 @@ def get_addon_price(addon_str):
         return 0.0
 
 @st.cache_data(ttl=60, show_spinner="Memuatkan data...")
-def load_vendors():
+def load_vendors(spreadsheet_url: str, worksheet: str = "Vendors"):
     conn = st.connection("gsheets", type=GSheetsConnection)
-    try: return conn.read(worksheet="Vendors", ttl=60), None
+    try: return conn.read(spreadsheet=spreadsheet_url, worksheet=worksheet, ttl=60), None
     except Exception as e: return None, str(e)
 
 @st.cache_data(ttl=5, show_spinner=False)
-def load_payments():
+def load_payments(spreadsheet_url: str, worksheet: str = "Payments"):
     conn = st.connection("gsheets", type=GSheetsConnection)
-    try: return conn.read(worksheet="Payments", ttl=5), None
+    try: return conn.read(spreadsheet=spreadsheet_url, worksheet=worksheet, ttl=5), None
     except Exception as e: return None, str(e)
 
 def get_vendor_payment_info(payments_df, plate_norm):
@@ -235,7 +248,7 @@ def show_pending_dialog(row, plate, products_text=""):
         "<div style='text-align:center; padding:0.2rem 0 0.5rem 0;'>"
         "<div style='font-size:2.2rem; line-height:1;'>⏳</div>"
         "<div style='font-size:1.15rem; font-weight:700; color:#92400e; margin-top:0.3rem;'>Permohonan Sedang Disemak</div>"
-        "<div style='font-size:0.85rem; color:#a16207; margin-top:0.2rem;'>Anggaran 1-2 hari bekerja</div>"
+        "<div style='font-size:0.85rem; color:#a16207; margin-top:0.2rem;'>Anggaran 2-3 hari bekerja</div>"
         "</div>",
         unsafe_allow_html=True,
     )
@@ -437,6 +450,7 @@ def show_not_found_dialog(query):
 # 4. TOP NAVIGATION BAR (MENU PANTAS)
 # ==========================================
 if st.button("⬅️ Kembali ke Menu Utama"):
+    st.session_state.pop("selected_event", None) # Clear session
     st.switch_page("info_page.py")
 
 
@@ -463,7 +477,7 @@ st.markdown(f"<h1 style='text-align: center; font-size: 2.5rem;'>{event_name}</h
 st.write("") 
 
 col_left, col_right = st.columns([1, 2])
-banner_file = ev_data.get("banner", "assets/cbssh.png" if event_key == "event_1" else "")
+banner_file = ev_data.get("banner", "assets/cbssh.png")
 
 with col_left:
     if banner_file and Path(banner_file).exists():
@@ -492,7 +506,9 @@ with col_right:
     with sub_col1:
         with st.container(border=True):
             try:
-                target = datetime(2026, 12, 11, 0, 0, tzinfo=TIMEZONE)
+                target_date_str = ev_data.get("event_date", "2026-12-11")
+                target = datetime.strptime(target_date_str, "%Y-%m-%d").replace(tzinfo=TIMEZONE)
+                
                 rem = int((target - datetime.now(TIMEZONE)).total_seconds())
                 if rem > 0:
                     d, h = rem // 86400, (rem % 86400) // 3600
@@ -505,7 +521,7 @@ with col_right:
 
     total_vendor = "Tidak Diketahui"
     try:
-        vend_df, _ = load_vendors()
+        vend_df, _ = load_vendors(EVENT_SHEET_URL, VENDORS_WS)
         if vend_df is not None: total_vendor = len(vend_df)
     except Exception: pass
 
@@ -541,7 +557,7 @@ with st.container(border=True):
         """, unsafe_allow_html=True)
 
 if submitted and query:
-    df, err = load_vendors()
+    df, err = load_vendors(EVENT_SHEET_URL, VENDORS_WS)
     if df is None:
         st.error(f"Gagal memuatkan data: {err}")
     else:
@@ -557,7 +573,7 @@ if submitted and query:
             paid = bool(row["Paid"]) if "Paid" in row and pd.notna(row["Paid"]) else False
             plate_norm = _clean_plate_str(row[COL_PLATE])
 
-            payments_df, _ = load_payments()
+            payments_df, _ = load_payments(EVENT_SHEET_URL, PAYMENTS_WS)
             payment_info = get_vendor_payment_info(payments_df if payments_df is not None else pd.DataFrame(), plate_norm)
             has_uploaded_proof = bool(payment_info.get("proof_url"))
             proof_upload_time = payment_info.get("timestamp", "")
