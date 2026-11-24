@@ -82,11 +82,13 @@ def page_header(title="", subtitle="", image_path="assets/headerpfm.jpeg"):
         "></div>
         """, unsafe_allow_html=True)
 
-def load_sheet_safe(conn, worksheet, ttl=600):
+def load_sheet_safe(conn, worksheet_name, ttl=60, spreadsheet_url=None):
     try:
-        return conn.read(worksheet=worksheet, ttl=ttl)
+        if spreadsheet_url:
+            return conn.read(worksheet=worksheet_name, ttl=ttl, spreadsheet=spreadsheet_url)
+        return conn.read(worksheet=worksheet_name, ttl=ttl)
     except Exception as e:
-        st.error(f"Ralat membaca data: {e}")
+        st.error(f"Gagal memuatkan data dari {worksheet_name}: {e}")
         return None
 
 def log_action(conn, admin_name, action, plate, details=""):
