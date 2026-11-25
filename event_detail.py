@@ -273,6 +273,7 @@ def show_pending_dialog(row, plate, products_text=""):
 
 @st.dialog("🎉 Tahniah!", width="large")
 def show_success_dialog(row, plate, status, paid, slot_items, products_text=""):
+    st.balloons()
     st.markdown(
         "<div style='text-align:center; padding:0.2rem 0 0.5rem 0;'>"
         "<div style='font-size:2.2rem; line-height:1;'>🎉</div>"
